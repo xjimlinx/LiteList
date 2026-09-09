@@ -2,6 +2,51 @@
 
 LiteList 是一个轻量、纯本地运行的 Windows 桌面待办和便签工具。它适合把近期要做的事情放在桌面边缘，随手添加、完成、编辑和排序；也可以创建可拖动的桌面便签，用来记录灵感、会议要点和购物清单。
 
+## 先看这里：当前如何获得并运行
+
+目前仓库还没有发布 GitHub Release，Releases 页面为空。当前最可靠的使用方式是从源码构建。LiteList 暂时也没有安装程序，构建出的 `.exe` 可以直接双击运行。
+
+如果电脑已经安装 Rust 和 Visual Studio 的 MSVC 编译环境，完整流程如下：
+
+```powershell
+git clone https://github.com/Baozixu99/LiteList.git
+cd LiteList
+cargo build --release
+.\target\release\litelist.exe
+```
+
+`cargo build --release` 成功后，真正需要双击的文件是：
+
+```text
+LiteList\target\release\litelist.exe
+```
+
+也可以在资源管理器中打开这个目录并双击 `litelist.exe`。程序启动后主要显示在 Windows 通知区域，第一次使用时请查看右下角托盘；右键托盘图标可以打开菜单、创建便签或退出程序。
+
+如果只运行 `cargo build`，生成的是调试版：
+
+```text
+LiteList\target\debug\litelist.exe
+```
+
+调试版同样可以直接双击，但体积更大、运行优化较少。给普通使用者准备文件时建议使用 `--release`。
+
+## 构建前需要什么
+
+普通使用者不需要安装 Rust；开发者从源码构建时需要准备以下环境：
+
+- Windows 10 或 Windows 11
+- Rustup 和项目指定的 Rust 工具链
+- `x86_64-pc-windows-msvc` 目标
+- Visual Studio 2022 或 Build Tools 中的“使用 C++ 的桌面开发”组件
+- Windows 10/11 SDK
+
+安装 Rustup 后，在项目目录执行 `cargo build --release` 时，Rustup 会根据 `rust-toolchain.toml` 选择项目需要的工具链。第一次构建还需要从 crates.io 下载依赖，因此需要网络；以后可以使用 `--offline`，但前提是依赖已经缓存。
+
+如果遇到 `link.exe`、MSVC 或 Windows SDK 相关错误，通常是 C++ 编译工具链没有安装完整。可以从 Visual Studio Installer 安装“使用 C++ 的桌面开发”，然后重新打开终端再执行构建。
+
+LiteList 使用静态 CRT 链接，发布后的程序不要求使用者另外安装 Visual C++ 运行库。程序只支持 Windows，不能在 macOS 或 Linux 上直接运行。
+
 ## 功能
 
 - 半透明悬浮待办面板，可展开、收起、移动和调整大小
@@ -16,16 +61,6 @@ LiteList 是一个轻量、纯本地运行的 Windows 桌面待办和便签工�
 - 数据、备份和通知均保存在本机，不需要登录或联网服务
 - 支持开机启动、浅色主题、背景透明度和 JSON 导入导出
 
-## 下载和启动
-
-在 GitHub 的仓库页面打开 **Releases** 下载发布包。当前源码仓库地址：
-
-<https://github.com/Baozixu99/LiteList>
-
-如果使用源码构建，运行生成的 `target\\release\\litelist.exe` 即可。程序首次启动后会出现在 Windows 通知区域；右键托盘图标可以打开菜单、显示便签或退出程序。
-
-LiteList 是桌面程序，不需要安装运行时。发布包包含 Windows 可执行文件；开发者从源码构建时需要 Rust 工具链。
-
 ## 快速使用
 
 主面板底部是输入区域。输入一条任务后按回车即可添加；连续按回车可以继续添加。任务区域中的复选框用于完成或恢复任务。
@@ -36,7 +71,7 @@ LiteList 是桌面程序，不需要安装运行时。发布包包含 Windows �
 
 ## 使用提醒
 
-选中一个任务后右键选择“提醒设置…”。提醒默认未启用，不设置提醒不会在任务列表中显示提醒状态。
+选中一个任务后右键选择“提醒设置…”。提醒默认未启用；不设置提醒时，任务列表不会显示提醒状态。
 
 启用后：
 
@@ -65,17 +100,17 @@ LiteList 是桌面程序，不需要安装运行时。发布包包含 Windows �
 
 托盘菜单中的“打开数据文件夹”可以直接打开目录；“导出备份到文件夹”会生成带时间戳的 JSON 备份；“导入 JSON 备份…”可以恢复一份合法的 LiteList 数据。
 
-如果希望把程序和数据放在同一个目录中，可以在可执行文件旁创建空文件 `portable.flag`。下次启动后数据会保存到程序目录下的 `data` 文件夹。便携模式适合放在 U 盘或独立项目目录中。
+如果希望使用便携模式：
 
-## 开发环境
+1. 先执行 `cargo build --release`。
+2. 在 `target\\release` 目录中创建一个空文件，文件名必须是 `portable.flag`。
+3. 双击同目录下的 `litelist.exe`。
 
-LiteList 使用 Rust 和 Windows 原生 API 实现，当前目标平台是 `x86_64-pc-windows-msvc`。项目通过静态 CRT 链接，发布时不要求用户额外安装 Visual C++ 运行库。
+此时数据会保存到 `target\\release\\data`。如果把 exe 复制到其他目录，记得把 `portable.flag` 一起复制过去。
 
-准备：
+## 从源码开发
 
-- Windows 10 或 Windows 11
-- Rust stable 工具链，项目指定版本见 `rust-toolchain.toml`
-- MSVC 编译工具链
+项目使用 Rust 和 Windows 原生 API 实现，当前目标平台是 `x86_64-pc-windows-msvc`。
 
 常用命令：
 
@@ -86,15 +121,27 @@ cargo build
 # Release 构建
 cargo build --release
 
+# 运行程序
+cargo run --release
+
 # 运行测试
 cargo test
 
-# 检查格式和常见问题
+# 检查格式
 cargo fmt --check
+
+# 运行 Clippy
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-构建产物位于 `target\\debug` 或 `target\\release`。`dist`、`target` 和本地 `data` 已加入 `.gitignore`，不会进入提交。
+依赖下载完成后，也可以使用：
+
+```powershell
+cargo test --offline
+cargo build --release --offline
+```
+
+构建产物位于 `target\\debug` 或 `target\\release`。仓库中的 `dist` 和 `target` 是本地构建目录，已加入 `.gitignore`，不会随源码提交。要制作一个简单的本地分发目录，可以复制 `target\\release\\litelist.exe`，不需要额外的 DLL；如果启用便携模式，则同时复制 `portable.flag`。
 
 ## 代码结构
 
@@ -111,7 +158,7 @@ src/
 
 界面回调只负责收集 Windows 消息，数据模型在主事件循环中修改。新增功能时优先把业务规则放在 `model.rs` 或 `reminders.rs`，把窗口消息和控件布局留在 `ui.rs`、`panels.rs`，并为可测试的规则补充单元测试。
 
-## 提交修改前
+## 修改后的检查清单
 
 提交前建议运行：
 
