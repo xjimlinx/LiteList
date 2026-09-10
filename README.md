@@ -20,6 +20,16 @@ kpackagetool6 --type Plasma/Applet --install package
 kpackagetool6 --type Plasma/Applet --upgrade package
 ```
 
+仓库也提供了统一命令。首次安装或日常更新可运行：
+
+```bash
+make install
+```
+
+如果已有小部件仍显示旧界面，运行 `make reload` 请求轻量刷新；仍未生效时运行
+`make restart`。也可以直接用 `make deploy` 完成安装/更新并重启 `plasmashell`。
+重启时桌面和面板会短暂消失，随后由 Plasma 用户服务自动恢复，小部件数据不会被清空。
+
 卸载：
 
 ```bash
@@ -131,6 +141,12 @@ node tests/store.test.js
 
 ```bash
 cargo test
+```
+
+也可以一次运行上述 QML、JavaScript 与 Rust 检查：
+
+```bash
+make test
 ```
 
 安装后，开发者可用 KDE 的 `plasmawindowed` 测试宿主预览。它只用于调试，正常使用时小部件由 `plasmashell` 直接加载，不会启动独立 LiteList 窗口或后台程序：
