@@ -20,6 +20,7 @@ Item {
     property real cardRadius: Kirigami.Units.cornerRadius * 1.3
     property int motionDuration: Kirigami.Units.shortDuration
     property bool denseMode: false
+    property int nodeShape: 0
 
     signal toggleNode(double nodeId)
     signal editNode(double nodeId)
@@ -31,6 +32,9 @@ Item {
                                                  : Kirigami.Units.gridUnit * 5.1
     readonly property real horizontalGap: Kirigami.Units.gridUnit * 1.6
     readonly property real verticalGap: Kirigami.Units.gridUnit * 2.7
+    readonly property real nodeCornerRadius: nodeShape === 1 ? 1
+                                                : nodeShape === 2 ? nodeHeight / 2
+                                                                  : cardRadius
     readonly property var layoutData: {
         revision
         return Store.goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap)
@@ -64,16 +68,42 @@ Item {
         anchors.fill: parent
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        interactive: false
         contentWidth: Math.max(width, root.layoutData.width + Kirigami.Units.largeSpacing * 2)
         contentHeight: Math.max(height, root.layoutData.height + Kirigami.Units.largeSpacing)
 
         QQC2.ScrollBar.horizontal: QQC2.ScrollBar {}
-        QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
 
         Item {
             id: treeContent
             width: treeScroll.contentWidth
             height: treeScroll.contentHeight
+
+            MouseArea {
+                id: canvasPanArea
+                anchors.fill: parent
+                enabled: treeScroll.contentWidth > treeScroll.width + 1
+                acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+                hoverEnabled: true
+                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+
+                property real pressViewportX: 0
+                property real pressContentX: 0
+
+                onPressed: function(mouse) {
+                    const point = mapToItem(root, mouse.x, mouse.y)
+                    pressViewportX = point.x
+                    pressContentX = treeScroll.contentX
+                }
+                onPositionChanged: function(mouse) {
+                    if (!pressed)
+                        return
+                    const point = mapToItem(root, mouse.x, mouse.y)
+                    const maximumX = Math.max(0, treeScroll.contentWidth - treeScroll.width)
+                    treeScroll.contentX = Math.max(0, Math.min(maximumX,
+                        pressContentX - (point.x - pressViewportX)))
+                }
+            }
 
             Canvas {
                 id: connectionCanvas
@@ -141,7 +171,7 @@ Item {
                     y: modelData.y
                     width: root.nodeWidth
                     height: root.nodeHeight
-                    radius: root.cardRadius
+                    radius: root.nodeCornerRadius
                     color: completed ? Qt.rgba(Kirigami.Theme.highlightColor.r,
                                                Kirigami.Theme.highlightColor.g,
                                                Kirigami.Theme.highlightColor.b, 0.22)
@@ -178,7 +208,9 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: Kirigami.Units.smallSpacing * 1.4
+                        anchors.margins: root.nodeShape === 2
+                                         ? Kirigami.Units.largeSpacing
+                                         : Kirigami.Units.smallSpacing * 1.4
                         spacing: 1
                         z: 1
 

@@ -13,6 +13,7 @@ KCM.SimpleKCM {
     property alias cfg_accentStrength: accentStrength.value
     property alias cfg_showDecorativeGlow: showDecorativeGlow.checked
     property alias cfg_decorativeGlowSize: decorativeGlowSize.value
+    property alias cfg_goalNodeShape: goalNodeShape.currentIndex
     property alias cfg_borderStrength: borderStrength.value
     property alias cfg_shadowStrength: shadowStrength.value
     property alias cfg_cornerScale: cornerScale.value
@@ -189,6 +190,13 @@ KCM.SimpleKCM {
                 horizontalAlignment: Text.AlignRight
                 text: Math.round(decorativeGlowSize.value) + "%"
             }
+        }
+
+        ComboBox {
+            id: goalNodeShape
+            Kirigami.FormData.label: "目标节点形状："
+            Layout.fillWidth: true
+            model: ["圆角卡片", "直角卡片", "胶囊卡片"]
         }
 
         RowLayout {

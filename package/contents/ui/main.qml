@@ -1364,9 +1364,8 @@ PlasmoidItem {
                                     id: routeTree
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: Math.max(
-                                        Kirigami.Units.gridUnit * 12,
-                                        Math.min(Kirigami.Units.gridUnit * 24,
-                                                 layoutData.height + Kirigami.Units.largeSpacing * 2))
+                                        Kirigami.Units.gridUnit * 8,
+                                        layoutData.height + Kirigami.Units.largeSpacing * 2)
                                     visible: goalCardDelegate.expanded && goalCardDelegate.nodeCount > 0
                                     goal: goalCardDelegate.goal
                                     revision: root.revision
@@ -1378,6 +1377,7 @@ PlasmoidItem {
                                     cardRadius: root.cardRadius
                                     motionDuration: root.motionDuration
                                     denseMode: Plasmoid.configuration.denseMode
+                                    nodeShape: Number(Plasmoid.configuration.goalNodeShape)
                                     onToggleNode: function(nodeId) {
                                         root.toggleGoalNode(goalCardDelegate.goal.id, nodeId)
                                     }
@@ -1409,7 +1409,8 @@ PlasmoidItem {
                                     PlasmaComponents3.Label {
                                         Layout.fillWidth: true
                                         text: goalCardDelegate.completed
-                                              ? "路线已全部完成" : "完成前置节点后会解锁后续节点"
+                                              ? "路线已全部完成"
+                                              : "完成前置节点后解锁后续节点；拖动空白处可横向浏览"
                                         color: goalCardDelegate.completed
                                                ? Kirigami.Theme.highlightColor
                                                : Kirigami.Theme.disabledTextColor
@@ -1855,10 +1856,10 @@ PlasmoidItem {
         standardButtons: QQC2.Dialog.Close
         contentItem: PlasmaComponents3.Label {
             wrapMode: Text.Wrap
-            text: "LiteList 0.6.1 · KDE Plasma 6\n\n"
+            text: "LiteList 0.7 · KDE Plasma 6\n\n"
                 + "输入待办后按回车添加；任务菜单中可编辑、排序、设置提醒或删除。"
                 + "“已完成”页面保留完成记录，删除的任务可从右上角菜单恢复。\n\n"
-                + "目标页会同时显示所有大目标；每个目标可独立折叠，并以科技树方式显示小目标的解锁关系。\n\n"
+                + "目标页会同时显示所有大目标；每个目标可独立折叠。节点增多时可滚动页面，宽路线可拖动空白处浏览。\n\n"
                 + "便签与清单保存在当前 Plasma 小部件的配置中，不需要登录或联网。"
                 + "提醒由 KDE 通知系统显示；Plasma 必须保持运行。"
         }
