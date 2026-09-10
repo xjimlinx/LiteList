@@ -1,0 +1,21 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "LiteList contributors"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "A local-first task list and notes widget for KDE Plasma",
+        "Description[zh_CN]": "纯本地的 KDE Plasma 待办与便签小部件",
+        "Icon": "view-calendar-tasks",
+        "Id": "io.github.baozixu99.litelist",
+        "License": "MIT",
+        "Name": "LiteList",
+        "Name[zh_CN]": "轻单 LiteList",
+        "Version": "0.3.0",
+        "Website": "https://github.com/Baozixu99/LiteList"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
