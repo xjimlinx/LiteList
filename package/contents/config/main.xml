@@ -41,6 +41,11 @@
       <min>0</min>
       <max>2</max>
     </entry>
+    <entry name="goalNodeSize" type="Int">
+      <default>1</default>
+      <min>0</min>
+      <max>2</max>
+    </entry>
     <entry name="borderStrength" type="Int">
       <default>16</default>
       <min>0</min>

@@ -14,6 +14,7 @@ KCM.SimpleKCM {
     property alias cfg_showDecorativeGlow: showDecorativeGlow.checked
     property alias cfg_decorativeGlowSize: decorativeGlowSize.value
     property alias cfg_goalNodeShape: goalNodeShape.currentIndex
+    property alias cfg_goalNodeSize: goalNodeSize.currentIndex
     property alias cfg_borderStrength: borderStrength.value
     property alias cfg_shadowStrength: shadowStrength.value
     property alias cfg_cornerScale: cornerScale.value
@@ -82,14 +83,16 @@ KCM.SimpleKCM {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: Kirigami.Units.cornerRadius * cornerScale.value / 125
+                    radius: goalNodeShape.currentIndex === 1 ? 1
+                            : goalNodeShape.currentIndex === 2 ? height / 2
+                                                               : Kirigami.Units.cornerRadius * cornerScale.value / 125
                     color: page.alphaColor(Kirigami.Theme.backgroundColor, cardOpacity.value / 100)
                     border.width: 1
                     border.color: page.alphaColor(Kirigami.Theme.textColor, borderStrength.value / 100)
 
                     Label {
                         anchors.centerIn: parent
-                        text: denseMode.checked ? "紧凑任务卡片" : "普通任务卡片"
+                        text: "目标节点 · " + goalNodeSize.currentText
                         opacity: 0.8
                     }
                 }
@@ -194,9 +197,16 @@ KCM.SimpleKCM {
 
         ComboBox {
             id: goalNodeShape
-            Kirigami.FormData.label: "目标节点形状："
+            Kirigami.FormData.label: "默认节点形状："
             Layout.fillWidth: true
             model: ["圆角卡片", "直角卡片", "胶囊卡片"]
+        }
+
+        ComboBox {
+            id: goalNodeSize
+            Kirigami.FormData.label: "目标节点尺寸："
+            Layout.fillWidth: true
+            model: ["紧凑", "标准", "宽大（适合长文字）"]
         }
 
         RowLayout {

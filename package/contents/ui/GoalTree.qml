@@ -21,20 +21,21 @@ Item {
     property int motionDuration: Kirigami.Units.shortDuration
     property bool denseMode: false
     property int nodeShape: 0
+    property int nodeSize: 1
 
     signal toggleNode(double nodeId)
     signal editNode(double nodeId)
     signal deleteNode(double nodeId)
 
-    readonly property real nodeWidth: denseMode ? Kirigami.Units.gridUnit * 7.4
-                                                : Kirigami.Units.gridUnit * 8.4
-    readonly property real nodeHeight: denseMode ? Kirigami.Units.gridUnit * 4.2
-                                                 : Kirigami.Units.gridUnit * 5.1
+    readonly property int effectiveNodeSize: denseMode ? 0 : Math.max(0, Math.min(2, nodeSize))
+    readonly property real nodeWidth: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 7.4
+                                            : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 12
+                                                                      : Kirigami.Units.gridUnit * 9.4
+    readonly property real nodeHeight: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 4.2
+                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 8
+                                                                       : Kirigami.Units.gridUnit * 6
     readonly property real horizontalGap: Kirigami.Units.gridUnit * 1.6
     readonly property real verticalGap: Kirigami.Units.gridUnit * 2.7
-    readonly property real nodeCornerRadius: nodeShape === 1 ? 1
-                                                : nodeShape === 2 ? nodeHeight / 2
-                                                                  : cardRadius
     readonly property var layoutData: {
         revision
         return Store.goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap)
@@ -166,12 +167,19 @@ Item {
                     readonly property var node: modelData.node
                     readonly property bool completed: node.completed_at !== null
                     readonly property bool unlocked: Store.nodeUnlocked(root.goal, node)
+                    readonly property int effectiveShape: Number.isInteger(node.shape)
+                                                                  && node.shape >= 0 && node.shape <= 2
+                                                          ? node.shape : root.nodeShape
+                    readonly property bool textTruncated: nodeTitleLabel.truncated
+                                                          || (nodeDescriptionLabel.visible
+                                                              && nodeDescriptionLabel.truncated)
 
                     x: (treeContent.width - root.layoutData.width) / 2 + modelData.x
                     y: modelData.y
                     width: root.nodeWidth
                     height: root.nodeHeight
-                    radius: root.nodeCornerRadius
+                    radius: effectiveShape === 1 ? 1
+                              : effectiveShape === 2 ? height / 2 : root.cardRadius
                     color: completed ? Qt.rgba(Kirigami.Theme.highlightColor.r,
                                                Kirigami.Theme.highlightColor.g,
                                                Kirigami.Theme.highlightColor.b, 0.22)
@@ -187,6 +195,10 @@ Item {
                     shadow.size: nodeMouse.containsMouse && unlocked ? Kirigami.Units.smallSpacing : 0
                     shadow.color: root.glassShadow
                     shadow.yOffset: 2
+
+                    PlasmaComponents3.ToolTip.visible: nodeMouse.containsMouse && textTruncated
+                    PlasmaComponents3.ToolTip.text: node.title
+                        + (node.description.length > 0 ? "\n\n" + node.description : "")
 
                     Behavior on color {
                         ColorAnimation { duration: root.motionDuration }
@@ -208,7 +220,7 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: root.nodeShape === 2
+                        anchors.margins: nodeCard.effectiveShape === 2
                                          ? Kirigami.Units.largeSpacing
                                          : Kirigami.Units.smallSpacing * 1.4
                         spacing: 1
@@ -225,8 +237,12 @@ Item {
                                        ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                             }
                             PlasmaComponents3.Label {
+                                id: nodeTitleLabel
                                 Layout.fillWidth: true
                                 text: nodeCard.node.title
+                                wrapMode: Text.Wrap
+                                maximumLineCount: root.effectiveNodeSize === 0 ? 1
+                                                    : root.effectiveNodeSize === 2 ? 3 : 2
                                 elide: Text.ElideRight
                                 font.weight: Font.DemiBold
                             }
@@ -239,12 +255,14 @@ Item {
                         }
 
                         PlasmaComponents3.Label {
+                            id: nodeDescriptionLabel
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             visible: nodeCard.node.description.length > 0
                             text: nodeCard.node.description
                             wrapMode: Text.Wrap
-                            maximumLineCount: root.denseMode ? 1 : 2
+                            maximumLineCount: root.effectiveNodeSize === 0 ? 1
+                                                : root.effectiveNodeSize === 2 ? 4 : 2
                             elide: Text.ElideRight
                             opacity: 0.72
                             font: Kirigami.Theme.smallFont

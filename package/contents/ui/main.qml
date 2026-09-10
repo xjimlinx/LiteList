@@ -420,6 +420,7 @@ PlasmoidItem {
         goalNodeDialog.requirementIds = []
         nodeTitleField.text = ""
         nodeDescriptionField.text = ""
+        nodeShapeField.currentIndex = 0
         goalNodeDialog.open()
         nodeTitleField.forceActiveFocus()
     }
@@ -441,6 +442,7 @@ PlasmoidItem {
             title: title,
             description: nodeDescriptionField.text.replace(/\u0000/g, "").trim().slice(0, 2000),
             requires: goalNodeDialog.requirementIds.slice(),
+            shape: nodeShapeField.currentIndex - 1,
             created_at: Store.now(),
             completed_at: null
         })
@@ -458,6 +460,9 @@ PlasmoidItem {
         editGoalNodeDialog.nodeId = nodeId
         editNodeTitleField.text = node.title
         editNodeDescriptionField.text = node.description
+        editNodeShapeField.currentIndex = Number.isInteger(node.shape)
+                                              && node.shape >= 0 && node.shape <= 2
+                                          ? node.shape + 1 : 0
         editGoalNodeDialog.open()
         editNodeTitleField.forceActiveFocus()
     }
@@ -470,6 +475,7 @@ PlasmoidItem {
             return
         node.title = title
         node.description = editNodeDescriptionField.text.replace(/\u0000/g, "").trim().slice(0, 2000)
+        node.shape = editNodeShapeField.currentIndex - 1
         editGoalNodeDialog.close()
         scheduleSave("已更新小目标")
     }
@@ -1378,6 +1384,7 @@ PlasmoidItem {
                                     motionDuration: root.motionDuration
                                     denseMode: Plasmoid.configuration.denseMode
                                     nodeShape: Number(Plasmoid.configuration.goalNodeShape)
+                                    nodeSize: Number(Plasmoid.configuration.goalNodeSize)
                                     onToggleNode: function(nodeId) {
                                         root.toggleGoalNode(goalCardDelegate.goal.id, nodeId)
                                     }
@@ -1507,6 +1514,15 @@ PlasmoidItem {
                 placeholderText: "简要说明该节点的完成标准"
                 wrapMode: TextEdit.Wrap
             }
+            RowLayout {
+                Layout.fillWidth: true
+                PlasmaComponents3.Label { text: "节点形状" }
+                PlasmaComponents3.ComboBox {
+                    id: nodeShapeField
+                    Layout.fillWidth: true
+                    model: ["跟随全局设置", "圆角卡片", "直角卡片", "胶囊卡片"]
+                }
+            }
             PlasmaComponents3.Label {
                 text: "前置条件（可多选）"
                 font.weight: Font.DemiBold
@@ -1584,6 +1600,15 @@ PlasmoidItem {
                 Layout.preferredHeight: Kirigami.Units.gridUnit * 5
                 placeholderText: "说明（可选）"
                 wrapMode: TextEdit.Wrap
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                PlasmaComponents3.Label { text: "节点形状" }
+                PlasmaComponents3.ComboBox {
+                    id: editNodeShapeField
+                    Layout.fillWidth: true
+                    model: ["跟随全局设置", "圆角卡片", "直角卡片", "胶囊卡片"]
+                }
             }
             PlasmaComponents3.Label {
                 text: "为避免意外形成循环，编辑时不修改前置条件；如需重建关系，请先删除后重新添加。"
@@ -1856,7 +1881,7 @@ PlasmoidItem {
         standardButtons: QQC2.Dialog.Close
         contentItem: PlasmaComponents3.Label {
             wrapMode: Text.Wrap
-            text: "LiteList 0.7 · KDE Plasma 6\n\n"
+            text: "LiteList 0.7.1 · KDE Plasma 6\n\n"
                 + "输入待办后按回车添加；任务菜单中可编辑、排序、设置提醒或删除。"
                 + "“已完成”页面保留完成记录，删除的任务可从右上角菜单恢复。\n\n"
                 + "目标页会同时显示所有大目标；每个目标可独立折叠。节点增多时可滚动页面，宽路线可拖动空白处浏览。\n\n"

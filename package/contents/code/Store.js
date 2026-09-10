@@ -152,11 +152,15 @@ function normalizeDocument(value) {
                     ? sourceNode.requires.map(Number).filter(function(id, index, all) {
                         return Number.isSafeInteger(id) && id > 0 && all.indexOf(id) === index
                     }) : []
+                const sourceShape = Number(sourceNode.shape)
+                const shape = Number.isSafeInteger(sourceShape) && sourceShape >= 0 && sourceShape <= 2
+                    ? sourceShape : -1
                 goal.nodes.push({
                     id: nodeId,
                     title: nodeTitle,
                     description: stringValue(sourceNode.description, 2000),
                     requires: requires,
+                    shape: shape,
                     created_at: Number(sourceNode.created_at) || now(),
                     completed_at: sourceNode.completed_at === null || sourceNode.completed_at === undefined
                                   ? null : Number(sourceNode.completed_at)

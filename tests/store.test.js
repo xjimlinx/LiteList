@@ -68,6 +68,7 @@ const goal = {
     ]
 }
 document.goals.push(goal)
+goal.nodes[1].shape = 2
 document.goals.push({
     id: document.next_goal_id++,
     title: "准备下一版本",
@@ -79,6 +80,10 @@ document.goals.push({
 const multipleGoals = Store.load(JSON.stringify(document))
 check(multipleGoals.error === "", "multiple goals were rejected")
 check(multipleGoals.document.goals.length === 2, "multiple goals were not preserved")
+check(multipleGoals.document.goals[0].nodes[0].shape === -1,
+      "legacy nodes should inherit the global shape")
+check(multipleGoals.document.goals[0].nodes[1].shape === 2,
+      "per-node shape was not preserved")
 check(Store.nodeUnlocked(goal, goal.nodes[0]), "root goal node should be unlocked")
 check(!Store.nodeUnlocked(goal, goal.nodes[1]), "dependent goal node unlocked too early")
 goal.nodes[0].completed_at = Store.now()
