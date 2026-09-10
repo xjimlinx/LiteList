@@ -1,10 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod model;
-mod storage;
-mod render;
-mod ui;
-mod reminders;
 mod panels;
+mod reminders;
+mod render;
+mod storage;
+mod ui;
 
 fn main() {
     if let Err(error) = ui::run() {

@@ -9,6 +9,8 @@ const source = fs.readFileSync(sourcePath, "utf8").replace(/^\.pragma library\s*
 const Store = { console }
 vm.createContext(Store)
 vm.runInContext(source, Store, { filename: sourcePath })
+const sharedGoalFixture = fs.readFileSync(
+    path.join(__dirname, "..", "shared", "fixtures", "goals-v2.json"), "utf8")
 
 function check(condition, message) {
     if (!condition)
@@ -96,5 +98,57 @@ check(layout.nodes[1].level === 1 && layout.nodes[2].level === 2, "goal prerequi
 const cyclic = Store.clone(document)
 cyclic.goals[0].nodes[0].requires = [3]
 check(Store.load(JSON.stringify(cyclic)).error.length > 0, "cyclic prerequisites were accepted")
+
+const sharedLoaded = Store.load(sharedGoalFixture)
+check(sharedLoaded.error === "", "shared cross-platform fixture was rejected")
+check(sharedLoaded.document.goals.length === 2, "shared fixture lost a large goal")
+check(sharedLoaded.document.goals[0].nodes[1].shape === 2,
+      "shared fixture lost its per-node shape")
+check(sharedLoaded.document.goals[0].nodes[2].requires.join(",") === "1,2",
+      "shared fixture lost prerequisite order")
+const sharedLayout = Store.goalLayout(sharedLoaded.document.goals[0], 150, 80, 24, 48)
+check(sharedLayout.nodes.find(item => item.node.id === 2).level === 1,
+      "shared fixture produced a different dependency level")
+
+document = Store.defaultDocument()
+const managedGoalId = Store.addGoal(document, "  统一版本  ", " 跨平台规则 ", 10)
+const rootNodeId = Store.addGoalNode(document, managedGoalId, "模型", "", [], -1, 20)
+const childNodeId = Store.addGoalNode(document, managedGoalId, "界面", "", [rootNodeId], 2, 30)
+check(document.goals[0].title === "统一版本", "goal title was not normalized")
+check(!Store.nodeUnlocked(document.goals[0], document.goals[0].nodes[1]),
+      "managed dependent node unlocked too early")
+let mutationRejected = false
+try {
+    Store.toggleGoalNode(document, managedGoalId, childNodeId, 40)
+} catch (_) {
+    mutationRejected = true
+}
+check(mutationRejected, "managed mutation bypassed prerequisites")
+check(Store.toggleGoalNode(document, managedGoalId, rootNodeId, 50),
+      "root node was not completed")
+check(Store.toggleGoalNode(document, managedGoalId, childNodeId, 60),
+      "child node was not completed")
+check(document.goals[0].completed_at === 60, "large goal was not completed automatically")
+mutationRejected = false
+try {
+    Store.toggleGoalNode(document, managedGoalId, rootNodeId, 70)
+} catch (_) {
+    mutationRejected = true
+}
+check(mutationRejected, "completed prerequisite was withdrawn underneath a child")
+Store.updateGoal(document, managedGoalId, "统一功能", "保持平台原生界面")
+Store.updateGoalNode(document, managedGoalId, childNodeId, "Windows 界面", "GDI+", 1)
+check(document.goals[0].nodes[1].shape === 1, "node update lost its shape")
+mutationRejected = false
+try {
+    Store.deleteGoalNode(document, managedGoalId, rootNodeId, 80)
+} catch (_) {
+    mutationRejected = true
+}
+check(mutationRejected, "a required node was deleted")
+Store.deleteGoalNode(document, managedGoalId, childNodeId, 80)
+Store.deleteGoalNode(document, managedGoalId, rootNodeId, 80)
+Store.deleteGoal(document, managedGoalId)
+check(document.goals.length === 0, "goal deletion failed")
 
 console.log("Store.js: all model checks passed")

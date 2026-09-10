@@ -99,6 +99,20 @@ Plasma 小部件不需要托盘图标、全局快捷键或“开机启动”：�
 
 原 Win32/Rust 实现仍保留在 `src/`，用于读取业务规则和数据格式，也方便继续维护 Windows 版本；Linux/KDE 的实际入口是 `package/contents/ui/main.qml`。
 
+### 跨平台功能架构
+
+Windows 继续使用 Win32/GDI+，Linux 继续使用 Plasma/QML。两端通过
+`shared/document.schema.json`、共同 JSON 夹具和相同的领域规则保持功能一致，
+不会要求 Windows 安装 Qt，也不会让 Plasmoid 依赖后台服务。目标路线数据现在可以由
+Windows 的 Rust 模型无损读写；Windows 原生目标路线界面直接使用这些领域 API。
+
+完整的数据所有权、依赖解锁、完成和删除规则见 `shared/feature-contract.md`。
+
+Windows 原生窗口也提供“待办 / 目标”页签。目标页支持同时显示多个大目标、独立折叠、
+创建和编辑大目标与小目标、多选前置条件、三种节点形状、明确的完成按钮、纵向滚动，
+以及在分支超宽时拖动空白处或按住 Shift 滚轮横向浏览。界面仍由轻量的 Win32/GDI+
+绘制，不需要 Qt 或 KDE 运行库。
+
 ## 开发与检查
 
 静态检查：
@@ -111,6 +125,12 @@ qmllint package/contents/code/Store.js package/contents/ui/main.qml
 
 ```bash
 node tests/store.test.js
+```
+
+运行跨平台 Rust 领域模型测试：
+
+```bash
+cargo test
 ```
 
 安装后，开发者可用 KDE 的 `plasmawindowed` 测试宿主预览。它只用于调试，正常使用时小部件由 `plasmashell` 直接加载，不会启动独立 LiteList 窗口或后台程序：
@@ -135,6 +155,10 @@ package/
         └── main.qml              Plasma 6 主界面与 KDE 通知集成
 tests/store.test.js               数据模型测试
 tests/qml/GoalTreeHarness.qml     目标树渲染测试
+shared/
+├── document.schema.json          两端共同的 JSON Schema
+├── feature-contract.md           跨平台业务规则
+└── fixtures/goals-v2.json        Rust 与 JavaScript 共用夹具
 ```
 
 ## 许可

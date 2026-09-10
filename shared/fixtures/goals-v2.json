@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "next_id": 2,
+  "next_goal_id": 3,
+  "next_node_id": 4,
+  "tasks": [
+    {
+      "id": 1,
+      "text": "整理发布说明",
+      "created_at": 1788969600000,
+      "completed_at": null,
+      "deleted_at": null,
+      "reminder": null,
+      "reminder_configured": false,
+      "schedule_checked": true
+    }
+  ],
+  "settings": {},
+  "notes": [],
+  "goals": [
+    {
+      "id": 1,
+      "title": "发布 Plasma 版本",
+      "description": "完成首个公开版本",
+      "created_at": 1788969600000,
+      "completed_at": null,
+      "nodes": [
+        {
+          "id": 1,
+          "title": "完成界面",
+          "description": "",
+          "requires": [],
+          "shape": -1,
+          "created_at": 1788969600000,
+          "completed_at": 1788973200000
+        },
+        {
+          "id": 2,
+          "title": "完成测试",
+          "description": "验证两端一致",
+          "requires": [1],
+          "shape": 2,
+          "created_at": 1788969600000,
+          "completed_at": null
+        },
+        {
+          "id": 3,
+          "title": "发布",
+          "description": "",
+          "requires": [1, 2],
+          "shape": 1,
+          "created_at": 1788969600000,
+          "completed_at": null
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "准备下一版本",
+      "description": "与第一个大目标并行推进",
+      "created_at": 1788969600000,
+      "completed_at": null,
+      "nodes": []
+    }
+  ],
+  "notifications": []
+}

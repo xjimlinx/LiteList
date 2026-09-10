@@ -340,36 +340,20 @@ PlasmoidItem {
     }
 
     function saveGoal() {
-        const title = goalTitleField.text.replace(/\u0000/g, "").trim().slice(0, 200)
-        if (title.length === 0)
-            return
-        const description = goalDescriptionField.text.replace(/\u0000/g, "").trim().slice(0, 2000)
-        if (goalDialog.goalId > 0) {
-            const goal = Store.findGoal(document, goalDialog.goalId)
-            if (!goal)
-                return
-            goal.title = title
-            goal.description = description
-            scheduleSave("已更新大目标")
-        } else {
-            if (document.goals.length >= 100) {
-                statusText = "大目标已达到 100 个上限"
-                return
+        try {
+            if (goalDialog.goalId > 0) {
+                Store.updateGoal(document, goalDialog.goalId, goalTitleField.text, goalDescriptionField.text)
+                scheduleSave("已更新大目标")
+            } else {
+                const goalId = Store.addGoal(document, goalTitleField.text, goalDescriptionField.text)
+                setGoalExpanded(goalId, true)
+                currentPage = 2
+                scheduleSave("已创建大目标")
             }
-            const goal = {
-                id: document.next_goal_id++,
-                title: title,
-                description: description,
-                created_at: Store.now(),
-                completed_at: null,
-                nodes: []
-            }
-            document.goals.push(goal)
-            setGoalExpanded(goal.id, true)
-            currentPage = 2
-            scheduleSave("已创建大目标")
+            goalDialog.close()
+        } catch (error) {
+            statusText = String(error)
         }
-        goalDialog.close()
     }
 
     function requestDeleteGoal(goalId) {
@@ -382,13 +366,12 @@ PlasmoidItem {
     }
 
     function deleteGoal(id) {
-        for (let index = 0; index < document.goals.length; ++index) {
-            if (document.goals[index].id === id) {
-                document.goals.splice(index, 1)
-                setGoalExpanded(id, true)
-                scheduleSave("大目标已删除")
-                return
-            }
+        try {
+            Store.deleteGoal(document, id)
+            setGoalExpanded(id, true)
+            scheduleSave("大目标已删除")
+        } catch (error) {
+            statusText = String(error)
         }
     }
 
@@ -426,29 +409,15 @@ PlasmoidItem {
     }
 
     function saveGoalNode() {
-        const goal = Store.findGoal(document, goalNodeDialog.goalId)
-        const title = nodeTitleField.text.replace(/\u0000/g, "").trim().slice(0, 200)
-        if (!goal || title.length === 0)
-            return
-        let totalNodes = 0
-        for (let index = 0; index < document.goals.length; ++index)
-            totalNodes += document.goals[index].nodes.length
-        if (totalNodes >= 2000) {
-            statusText = "小目标已达到 2000 个上限"
-            return
+        try {
+            Store.addGoalNode(document, goalNodeDialog.goalId, nodeTitleField.text,
+                              nodeDescriptionField.text, goalNodeDialog.requirementIds,
+                              nodeShapeField.currentIndex - 1)
+            goalNodeDialog.close()
+            scheduleSave("已添加小目标")
+        } catch (error) {
+            statusText = String(error)
         }
-        goal.nodes.push({
-            id: document.next_node_id++,
-            title: title,
-            description: nodeDescriptionField.text.replace(/\u0000/g, "").trim().slice(0, 2000),
-            requires: goalNodeDialog.requirementIds.slice(),
-            shape: nodeShapeField.currentIndex - 1,
-            created_at: Store.now(),
-            completed_at: null
-        })
-        goal.completed_at = null
-        goalNodeDialog.close()
-        scheduleSave("已添加小目标")
     }
 
     function openEditGoalNode(goalId, nodeId) {
@@ -468,16 +437,15 @@ PlasmoidItem {
     }
 
     function saveEditedGoalNode() {
-        const goal = Store.findGoal(document, editGoalNodeDialog.goalId)
-        const node = Store.findGoalNode(goal, editGoalNodeDialog.nodeId)
-        const title = editNodeTitleField.text.replace(/\u0000/g, "").trim().slice(0, 200)
-        if (!node || title.length === 0)
-            return
-        node.title = title
-        node.description = editNodeDescriptionField.text.replace(/\u0000/g, "").trim().slice(0, 2000)
-        node.shape = editNodeShapeField.currentIndex - 1
-        editGoalNodeDialog.close()
-        scheduleSave("已更新小目标")
+        try {
+            Store.updateGoalNode(document, editGoalNodeDialog.goalId, editGoalNodeDialog.nodeId,
+                                 editNodeTitleField.text, editNodeDescriptionField.text,
+                                 editNodeShapeField.currentIndex - 1)
+            editGoalNodeDialog.close()
+            scheduleSave("已更新小目标")
+        } catch (error) {
+            statusText = String(error)
+        }
     }
 
     function requestDeleteGoalNode(goalId, nodeId) {
@@ -485,11 +453,10 @@ PlasmoidItem {
         const node = Store.findGoalNode(goal, nodeId)
         if (!node)
             return
-        for (let index = 0; index < goal.nodes.length; ++index) {
-            if (goal.nodes[index].requires.indexOf(nodeId) >= 0) {
-                statusText = "该节点仍是其他小目标的前置条件，无法删除"
-                return
-            }
+        const deletionError = Store.goalNodeDeletionError(goal, nodeId)
+        if (deletionError.length > 0) {
+            statusText = deletionError
+            return
         }
         deleteGoalNodeDialog.goalId = goal.id
         deleteGoalNodeDialog.nodeId = nodeId
@@ -498,54 +465,22 @@ PlasmoidItem {
     }
 
     function deleteGoalNode(goalId, nodeId) {
-        const goal = Store.findGoal(document, goalId)
-        if (!goal)
-            return
-        for (let index = 0; index < goal.nodes.length; ++index) {
-            if (goal.nodes[index].id === nodeId) {
-                goal.nodes.splice(index, 1)
-                syncGoalCompletion(goal)
-                scheduleSave("小目标已删除")
-                return
-            }
-        }
-    }
-
-    function syncGoalCompletion(goal) {
-        const progress = Store.goalProgress(goal)
-        if (progress.total > 0 && progress.completed === progress.total) {
-            if (goal.completed_at === null)
-                goal.completed_at = Store.now()
-        } else {
-            goal.completed_at = null
+        try {
+            Store.deleteGoalNode(document, goalId, nodeId)
+            scheduleSave("小目标已删除")
+        } catch (error) {
+            statusText = String(error)
         }
     }
 
     function toggleGoalNode(goalId, nodeId) {
-        const goal = Store.findGoal(document, goalId)
-        const node = Store.findGoalNode(goal, nodeId)
-        if (!goal || !node)
-            return
-        if (node.completed_at === null) {
-            if (!Store.nodeUnlocked(goal, node)) {
-                statusText = "请先完成前置小目标"
-                return
-            }
-            node.completed_at = Store.now()
-            statusText = "小目标已完成"
-        } else {
-            for (let index = 0; index < goal.nodes.length; ++index) {
-                const dependent = goal.nodes[index]
-                if (dependent.completed_at !== null && dependent.requires.indexOf(nodeId) >= 0) {
-                    statusText = "已有完成节点依赖它，暂时不能撤回"
-                    return
-                }
-            }
-            node.completed_at = null
-            statusText = "小目标已恢复"
+        try {
+            const completed = Store.toggleGoalNode(document, goalId, nodeId)
+            statusText = completed ? "小目标已完成" : "小目标已恢复"
+            scheduleSave(statusText)
+        } catch (error) {
+            statusText = String(error)
         }
-        syncGoalCompletion(goal)
-        scheduleSave(statusText)
     }
 
     function showNotification(item) {

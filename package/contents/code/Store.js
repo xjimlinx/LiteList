@@ -202,9 +202,18 @@ function normalizeDocument(value) {
     }
 
     result.settings = value.settings && typeof value.settings === "object" ? value.settings : {}
-    result.next_id = Math.max(Number(value.next_id) || 1, largestId + 1)
-    result.next_goal_id = Math.max(Number(value.next_goal_id) || 1, largestGoalId + 1)
-    result.next_node_id = Math.max(Number(value.next_node_id) || 1, largestNodeId + 1)
+    function nextCounter(value, largest) {
+        let candidate = Number(value)
+        if (!Number.isSafeInteger(candidate) || candidate < 1)
+            candidate = 1
+        candidate = Math.max(candidate, largest + 1)
+        if (!Number.isSafeInteger(candidate))
+            throw new Error("ID 超出跨平台 JSON 安全范围")
+        return candidate
+    }
+    result.next_id = nextCounter(value.next_id, largestId)
+    result.next_goal_id = nextCounter(value.next_goal_id, largestGoalId)
+    result.next_node_id = nextCounter(value.next_node_id, largestNodeId)
     return result
 }
 
@@ -291,6 +300,157 @@ function goalProgress(goal) {
             ++completed
     }
     return { completed: completed, total: goal.nodes.length, ratio: completed / goal.nodes.length }
+}
+
+function cleanGoalText(value, limit) {
+    return stringValue(value, limit).trim()
+}
+
+function addGoal(document, title, description, timestamp) {
+    if (document.goals.length >= 100)
+        throw new Error("大目标已达到 100 个上限")
+    const cleanTitle = cleanGoalText(title, 200)
+    if (cleanTitle.length === 0)
+        throw new Error("请输入大目标名称")
+    if (!Number.isSafeInteger(document.next_goal_id) || document.next_goal_id >= Number.MAX_SAFE_INTEGER)
+        throw new Error("大目标 ID 溢出")
+    const id = document.next_goal_id++
+    document.goals.push({
+        id: id,
+        title: cleanTitle,
+        description: cleanGoalText(description, 2000),
+        created_at: Number.isFinite(timestamp) ? timestamp : now(),
+        completed_at: null,
+        nodes: []
+    })
+    return id
+}
+
+function updateGoal(document, goalId, title, description) {
+    const goal = findGoal(document, goalId)
+    if (!goal)
+        throw new Error("找不到大目标")
+    const cleanTitle = cleanGoalText(title, 200)
+    if (cleanTitle.length === 0)
+        throw new Error("请输入大目标名称")
+    goal.title = cleanTitle
+    goal.description = cleanGoalText(description, 2000)
+}
+
+function deleteGoal(document, goalId) {
+    for (let index = 0; index < document.goals.length; ++index) {
+        if (document.goals[index].id === goalId) {
+            document.goals.splice(index, 1)
+            return
+        }
+    }
+    throw new Error("找不到大目标")
+}
+
+function addGoalNode(document, goalId, title, description, requires, shape, timestamp) {
+    const goal = findGoal(document, goalId)
+    if (!goal)
+        throw new Error("找不到大目标")
+    let totalNodes = 0
+    for (let index = 0; index < document.goals.length; ++index)
+        totalNodes += document.goals[index].nodes.length
+    if (totalNodes >= 2000)
+        throw new Error("小目标已达到 2000 个上限")
+    const cleanTitle = cleanGoalText(title, 200)
+    if (cleanTitle.length === 0)
+        throw new Error("请输入小目标名称")
+    const uniqueRequires = []
+    for (let index = 0; index < requires.length; ++index) {
+        const required = Number(requires[index])
+        if (!findGoalNode(goal, required))
+            throw new Error("小目标包含不存在的前置条件")
+        if (uniqueRequires.indexOf(required) < 0)
+            uniqueRequires.push(required)
+    }
+    const cleanShape = Number.isInteger(shape) && shape >= -1 && shape <= 2 ? shape : -1
+    if (!Number.isSafeInteger(document.next_node_id) || document.next_node_id >= Number.MAX_SAFE_INTEGER)
+        throw new Error("小目标 ID 溢出")
+    const id = document.next_node_id++
+    goal.nodes.push({
+        id: id,
+        title: cleanTitle,
+        description: cleanGoalText(description, 2000),
+        requires: uniqueRequires,
+        shape: cleanShape,
+        created_at: Number.isFinite(timestamp) ? timestamp : now(),
+        completed_at: null
+    })
+    goal.completed_at = null
+    return id
+}
+
+function updateGoalNode(document, goalId, nodeId, title, description, shape) {
+    const node = findGoalNode(findGoal(document, goalId), nodeId)
+    if (!node)
+        throw new Error("找不到小目标")
+    const cleanTitle = cleanGoalText(title, 200)
+    if (cleanTitle.length === 0)
+        throw new Error("请输入小目标名称")
+    node.title = cleanTitle
+    node.description = cleanGoalText(description, 2000)
+    node.shape = Number.isInteger(shape) && shape >= -1 && shape <= 2 ? shape : -1
+}
+
+function goalNodeDeletionError(goal, nodeId) {
+    if (!findGoalNode(goal, nodeId))
+        return "找不到小目标"
+    for (let index = 0; index < goal.nodes.length; ++index) {
+        if (goal.nodes[index].requires.indexOf(nodeId) >= 0)
+            return "该节点仍是其他小目标的前置条件，无法删除"
+    }
+    return ""
+}
+
+function syncGoalCompletion(goal, timestamp) {
+    const progress = goalProgress(goal)
+    if (progress.total > 0 && progress.completed === progress.total) {
+        if (goal.completed_at === null)
+            goal.completed_at = Number.isFinite(timestamp) ? timestamp : now()
+    } else {
+        goal.completed_at = null
+    }
+}
+
+function deleteGoalNode(document, goalId, nodeId, timestamp) {
+    const goal = findGoal(document, goalId)
+    if (!goal)
+        throw new Error("找不到大目标")
+    const error = goalNodeDeletionError(goal, nodeId)
+    if (error.length > 0)
+        throw new Error(error)
+    for (let index = 0; index < goal.nodes.length; ++index) {
+        if (goal.nodes[index].id === nodeId) {
+            goal.nodes.splice(index, 1)
+            syncGoalCompletion(goal, timestamp)
+            return
+        }
+    }
+}
+
+function toggleGoalNode(document, goalId, nodeId, timestamp) {
+    const goal = findGoal(document, goalId)
+    const node = findGoalNode(goal, nodeId)
+    if (!goal || !node)
+        throw new Error("找不到小目标")
+    const completing = node.completed_at === null
+    if (completing && !nodeUnlocked(goal, node))
+        throw new Error("请先完成前置小目标")
+    if (!completing) {
+        for (let index = 0; index < goal.nodes.length; ++index) {
+            const dependent = goal.nodes[index]
+            if (dependent.completed_at !== null && dependent.requires.indexOf(nodeId) >= 0)
+                throw new Error("已有完成节点依赖它，暂时不能撤回")
+        }
+    }
+    const changedAt = Number.isFinite(timestamp) ? timestamp : now()
+    node.completed_at = completing ? changedAt : null
+    syncGoalCompletion(goal, changedAt)
+    return completing
 }
 
 function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
