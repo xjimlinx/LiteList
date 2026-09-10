@@ -31,9 +31,9 @@ Item {
     readonly property real nodeWidth: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 7.4
                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 12
                                                                       : Kirigami.Units.gridUnit * 9.4
-    readonly property real nodeHeight: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 4.2
-                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 8
-                                                                       : Kirigami.Units.gridUnit * 6
+    readonly property real nodeHeight: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 5.4
+                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 8.2
+                                                                       : Kirigami.Units.gridUnit * 6.4
     readonly property real horizontalGap: Kirigami.Units.gridUnit * 1.6
     readonly property real verticalGap: Kirigami.Units.gridUnit * 2.7
     readonly property var layoutData: {
@@ -228,14 +228,6 @@ Item {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            Kirigami.Icon {
-                                Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
-                                Layout.preferredHeight: width
-                                source: nodeCard.completed ? "checkmark"
-                                                         : nodeCard.unlocked ? "flag" : "lock"
-                                color: nodeCard.completed || nodeCard.unlocked
-                                       ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
-                            }
                             PlasmaComponents3.Label {
                                 id: nodeTitleLabel
                                 Layout.fillWidth: true
@@ -267,29 +259,54 @@ Item {
                             opacity: 0.72
                             font: Kirigami.Theme.smallFont
                         }
-                        PlasmaComponents3.Label {
+                        RowLayout {
                             Layout.fillWidth: true
-                            text: nodeCard.completed ? "已完成"
-                                                    : root.requirementText(nodeCard.node)
-                            color: nodeCard.completed || nodeCard.unlocked
-                                   ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
-                            font: Kirigami.Theme.smallFont
+                            spacing: Kirigami.Units.smallSpacing
+
+                            PlasmaComponents3.Label {
+                                Layout.fillWidth: true
+                                text: nodeCard.completed ? "已完成"
+                                                        : root.requirementText(nodeCard.node)
+                                color: nodeCard.completed || nodeCard.unlocked
+                                       ? Kirigami.Theme.highlightColor
+                                       : Kirigami.Theme.disabledTextColor
+                                font: Kirigami.Theme.smallFont
+                                elide: Text.ElideRight
+                            }
+                            PlasmaComponents3.ToolButton {
+                                id: completionButton
+                                Layout.preferredWidth: Kirigami.Units.gridUnit * 1.55
+                                Layout.preferredHeight: width
+                                icon.name: nodeCard.completed ? "edit-undo"
+                                           : nodeCard.unlocked ? "checkmark" : "lock"
+                                text: nodeCard.completed ? "撤回完成"
+                                      : nodeCard.unlocked ? "完成小目标" : "前置条件尚未完成"
+                                display: QQC2.AbstractButton.IconOnly
+                                enabled: nodeCard.completed || nodeCard.unlocked
+                                onClicked: root.toggleNode(nodeCard.node.id)
+                                PlasmaComponents3.ToolTip.text: text
+
+                                background: Rectangle {
+                                    radius: root.cardRadius
+                                    color: completionButton.enabled ? root.accentWash : "transparent"
+                                    border.width: 1
+                                    border.color: completionButton.enabled
+                                                  ? Kirigami.Theme.highlightColor : root.glassBorder
+                                }
+                            }
                         }
                     }
 
                     MouseArea {
                         id: nodeMouse
                         anchors.fill: parent
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        acceptedButtons: Qt.RightButton
                         hoverEnabled: true
-                        cursorShape: nodeCard.unlocked || nodeCard.completed
-                                     ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        cursorShape: Qt.ArrowCursor
                         z: 0
                         onClicked: function(mouse) {
                             if (mouse.button === Qt.RightButton)
                                 nodeMenu.popup()
-                            else if (nodeCard.unlocked || nodeCard.completed)
-                                root.toggleNode(nodeCard.node.id)
                         }
                     }
 
