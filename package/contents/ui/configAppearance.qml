@@ -11,6 +11,8 @@ KCM.SimpleKCM {
     property alias cfg_glassOpacity: glassOpacity.value
     property alias cfg_cardOpacity: cardOpacity.value
     property alias cfg_accentStrength: accentStrength.value
+    property alias cfg_showDecorativeGlow: showDecorativeGlow.checked
+    property alias cfg_decorativeGlowSize: decorativeGlowSize.value
     property alias cfg_borderStrength: borderStrength.value
     property alias cfg_shadowStrength: shadowStrength.value
     property alias cfg_cornerScale: cornerScale.value
@@ -48,14 +50,16 @@ KCM.SimpleKCM {
             shadow.size: Kirigami.Units.largeSpacing
             shadow.color: Qt.rgba(0, 0, 0, shadowStrength.value / 100)
             shadow.yOffset: 3
+            clip: true
 
             Rectangle {
-                anchors.right: parent.right
-                anchors.top: parent.top
-                width: parent.width * 0.52
-                height: parent.height
-                radius: parent.radius
+                width: parent.width * decorativeGlowSize.value / 100
+                height: width
+                radius: width / 2
+                x: parent.width - width * 0.58
+                y: -height * 0.56
                 color: page.alphaColor(Kirigami.Theme.highlightColor, accentStrength.value / 100)
+                visible: showDecorativeGlow.checked && accentStrength.value > 0
             }
 
             ColumnLayout {
@@ -148,7 +152,7 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            Kirigami.FormData.label: "强调色光晕："
+            Kirigami.FormData.label: "强调色强度："
             Slider {
                 id: accentStrength
                 Layout.fillWidth: true
@@ -160,6 +164,30 @@ KCM.SimpleKCM {
                 Layout.minimumWidth: Kirigami.Units.gridUnit * 2.5
                 horizontalAlignment: Text.AlignRight
                 text: Math.round(accentStrength.value) + "%"
+            }
+        }
+
+        CheckBox {
+            id: showDecorativeGlow
+            Kirigami.FormData.label: "右上角装饰："
+            text: "显示光晕"
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: "光晕大小："
+            Layout.fillWidth: true
+            enabled: showDecorativeGlow.checked
+            Slider {
+                id: decorativeGlowSize
+                Layout.fillWidth: true
+                from: 25
+                to: 110
+                stepSize: 1
+            }
+            Label {
+                Layout.minimumWidth: Kirigami.Units.gridUnit * 2.5
+                horizontalAlignment: Text.AlignRight
+                text: Math.round(decorativeGlowSize.value) + "%"
             }
         }
 

@@ -29,6 +29,8 @@ PlasmoidItem {
         Number(Plasmoid.configuration.cardOpacity) / 100))
     readonly property real accentAlpha: Math.max(0, Math.min(0.45,
         Number(Plasmoid.configuration.accentStrength) / 100))
+    readonly property real decorativeGlowScale: Math.max(0.25, Math.min(1.1,
+        Number(Plasmoid.configuration.decorativeGlowSize) / 100))
     readonly property real borderAlpha: Math.max(0, Math.min(0.5,
         Number(Plasmoid.configuration.borderStrength) / 100))
     readonly property real shadowAlpha: Math.max(0, Math.min(0.5,
@@ -672,13 +674,13 @@ PlasmoidItem {
         }
 
         Rectangle {
-            width: parent.width * 0.58
+            width: parent.width * root.decorativeGlowScale
             height: width
             radius: width / 2
             x: parent.width - width * 0.58
             y: -height * 0.56
             color: root.accentWash
-            visible: root.accentAlpha > 0
+            visible: Plasmoid.configuration.showDecorativeGlow && root.accentAlpha > 0
             z: -1
         }
 
@@ -1853,7 +1855,7 @@ PlasmoidItem {
         standardButtons: QQC2.Dialog.Close
         contentItem: PlasmaComponents3.Label {
             wrapMode: Text.Wrap
-            text: "LiteList 0.6 · KDE Plasma 6\n\n"
+            text: "LiteList 0.6.1 · KDE Plasma 6\n\n"
                 + "输入待办后按回车添加；任务菜单中可编辑、排序、设置提醒或删除。"
                 + "“已完成”页面保留完成记录，删除的任务可从右上角菜单恢复。\n\n"
                 + "目标页会同时显示所有大目标；每个目标可独立折叠，并以科技树方式显示小目标的解锁关系。\n\n"
