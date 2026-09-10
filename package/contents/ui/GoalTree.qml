@@ -63,13 +63,13 @@ Item {
         id: treeScroll
         anchors.fill: parent
         clip: true
-        contentWidth: Math.max(availableWidth, treeContent.width)
-        contentHeight: Math.max(availableHeight, treeContent.height)
+        contentWidth: Math.max(width, root.layoutData.width + Kirigami.Units.largeSpacing * 2)
+        contentHeight: Math.max(height, root.layoutData.height + Kirigami.Units.largeSpacing)
 
         Item {
             id: treeContent
-            width: Math.max(treeScroll.availableWidth, root.layoutData.width + Kirigami.Units.largeSpacing * 2)
-            height: Math.max(treeScroll.availableHeight, root.layoutData.height + Kirigami.Units.largeSpacing)
+            width: treeScroll.contentWidth
+            height: treeScroll.contentHeight
 
             Canvas {
                 id: connectionCanvas

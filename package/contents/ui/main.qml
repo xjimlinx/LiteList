@@ -19,6 +19,7 @@ PlasmoidItem {
     property bool archiveMode: false
     property int currentPage: 0
     property double selectedGoalId: 0
+    property bool goalSectionExpanded: true
     property string draft: ""
     property string statusText: "完全本地保存"
     property bool undoAvailable: false
@@ -384,6 +385,7 @@ PlasmoidItem {
             }
             document.goals.push(goal)
             selectedGoalId = goal.id
+            goalSectionExpanded = true
             currentPage = 2
             scheduleSave("已创建大目标")
         }
@@ -403,10 +405,20 @@ PlasmoidItem {
             if (document.goals[index].id === id) {
                 document.goals.splice(index, 1)
                 selectedGoalId = document.goals.length > 0 ? document.goals[0].id : 0
+                goalSectionExpanded = true
                 scheduleSave("大目标已删除")
                 return
             }
         }
+    }
+
+    function selectGoal(id) {
+        const goal = Store.findGoal(document, id)
+        if (!goal)
+            return
+        selectedGoalId = goal.id
+        goalSectionExpanded = true
+        statusText = "已切换到“" + goal.title + "”"
     }
 
     function openNewGoalNode() {
@@ -1212,7 +1224,9 @@ PlasmoidItem {
                                             elide: Text.ElideRight
                                         }
                                         PlasmaComponents3.Label {
-                                            text: root.currentGoalCompleted ? "已达成" : "正在推进"
+                                            text: (root.currentGoalCompleted ? "已达成" : "正在推进")
+                                                  + " · " + root.currentGoalProgress.completed
+                                                  + "/" + root.currentGoalProgress.total
                                             color: root.currentGoalCompleted
                                                    ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.highlightColor
                                             font: Kirigami.Theme.smallFont
@@ -1223,9 +1237,16 @@ PlasmoidItem {
                                         id: switchGoalButton
                                         visible: root.goalCount > 1
                                         icon.name: "view-list-tree"
-                                        text: "切换大目标"
-                                        display: QQC2.AbstractButton.IconOnly
+                                        text: "切换 · " + root.goalCount
+                                        display: QQC2.AbstractButton.TextBesideIcon
                                         onClicked: goalSwitchMenu.popup(switchGoalButton, 0, height)
+                                        PlasmaComponents3.ToolTip.text: text
+                                    }
+                                    PlasmaComponents3.ToolButton {
+                                        icon.name: root.goalSectionExpanded ? "arrow-up" : "arrow-down"
+                                        text: root.goalSectionExpanded ? "折叠目标" : "展开目标"
+                                        display: QQC2.AbstractButton.IconOnly
+                                        onClicked: root.goalSectionExpanded = !root.goalSectionExpanded
                                         PlasmaComponents3.ToolTip.text: text
                                     }
                                     PlasmaComponents3.ToolButton {
@@ -1238,7 +1259,7 @@ PlasmoidItem {
                                     }
                                     QQC2.Menu {
                                         id: goalSwitchMenu
-                                        Repeater {
+                                        Instantiator {
                                             model: {
                                                 root.revision
                                                 return root.document.goals
@@ -1248,7 +1269,13 @@ PlasmoidItem {
                                                 text: modelData.title
                                                 checkable: true
                                                 checked: root.currentGoal && modelData.id === root.currentGoal.id
-                                                onTriggered: root.selectedGoalId = modelData.id
+                                                onTriggered: root.selectGoal(modelData.id)
+                                            }
+                                            onObjectAdded: function(index, object) {
+                                                goalSwitchMenu.insertItem(index, object)
+                                            }
+                                            onObjectRemoved: function(index, object) {
+                                                goalSwitchMenu.removeItem(object)
                                             }
                                         }
                                     }
@@ -1275,7 +1302,7 @@ PlasmoidItem {
 
                                 PlasmaComponents3.Label {
                                     Layout.fillWidth: true
-                                    visible: root.currentGoalDescription.length > 0
+                                    visible: root.goalSectionExpanded && root.currentGoalDescription.length > 0
                                     text: root.currentGoalDescription
                                     wrapMode: Text.Wrap
                                     maximumLineCount: 2
@@ -1286,6 +1313,7 @@ PlasmoidItem {
 
                                 RowLayout {
                                     Layout.fillWidth: true
+                                    visible: root.goalSectionExpanded
                                     PlasmaComponents3.Label {
                                         text: "路线进度"
                                         opacity: 0.68
@@ -1311,7 +1339,7 @@ PlasmoidItem {
                             id: goalTree
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: root.currentGoalNodeCount > 0
+                            visible: root.goalSectionExpanded && root.currentGoalNodeCount > 0
                             goal: root.currentGoal
                             revision: root.revision
                             glassSurface: root.glassSurface
@@ -1330,7 +1358,9 @@ PlasmoidItem {
                         Kirigami.PlaceholderMessage {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: root.goalCount > 0 && root.currentGoalNodeCount === 0
+                            visible: root.goalSectionExpanded
+                                     && root.goalCount > 0
+                                     && root.currentGoalNodeCount === 0
                             icon.name: "flag"
                             text: "从第一个小目标开始"
                             explanation: "起始节点不需要前置条件；之后可以从它继续分支。"
@@ -1343,7 +1373,7 @@ PlasmoidItem {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            visible: root.currentGoalNodeCount > 0
+                            visible: root.goalSectionExpanded && root.currentGoalNodeCount > 0
                             PlasmaComponents3.Label {
                                 Layout.fillWidth: true
                                 text: root.currentGoalCompleted
@@ -1773,7 +1803,7 @@ PlasmoidItem {
         standardButtons: QQC2.Dialog.Close
         contentItem: PlasmaComponents3.Label {
             wrapMode: Text.Wrap
-            text: "LiteList 0.5.1 · KDE Plasma 6\n\n"
+            text: "LiteList 0.5.2 · KDE Plasma 6\n\n"
                 + "输入待办后按回车添加；任务菜单中可编辑、排序、设置提醒或删除。"
                 + "“已完成”页面保留完成记录，删除的任务可从右上角菜单恢复。\n\n"
                 + "目标路线可把大目标拆为带前置条件的小目标，并以科技树方式显示解锁关系。\n\n"
