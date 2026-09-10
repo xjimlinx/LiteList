@@ -89,6 +89,26 @@ PlasmoidItem {
         revision
         return Store.goalProgress(currentGoal)
     }
+    readonly property int goalCount: {
+        revision
+        return document.goals.length
+    }
+    readonly property int currentGoalNodeCount: {
+        revision
+        return currentGoal ? currentGoal.nodes.length : 0
+    }
+    readonly property string currentGoalTitle: {
+        revision
+        return currentGoal ? currentGoal.title : ""
+    }
+    readonly property string currentGoalDescription: {
+        revision
+        return currentGoal ? currentGoal.description : ""
+    }
+    readonly property bool currentGoalCompleted: {
+        revision
+        return currentGoal ? currentGoal.completed_at !== null : false
+    }
 
     Plasmoid.title: i18n("LiteList")
     Plasmoid.icon: "view-calendar-tasks"
@@ -707,33 +727,6 @@ PlasmoidItem {
                 }
 
                 GlassToolButton {
-                    icon.name: "view-calendar-tasks"
-                    checked: root.currentPage === 0
-                    checkable: true
-                    text: "待办"
-                    display: QQC2.AbstractButton.IconOnly
-                    onClicked: root.currentPage = 0
-                    PlasmaComponents3.ToolTip.text: text
-                }
-                GlassToolButton {
-                    icon.name: "document-edit"
-                    checked: root.currentPage === 1
-                    checkable: true
-                    text: "便签"
-                    display: QQC2.AbstractButton.IconOnly
-                    onClicked: root.currentPage = 1
-                    PlasmaComponents3.ToolTip.text: text
-                }
-                GlassToolButton {
-                    icon.name: "flag"
-                    checked: root.currentPage === 2
-                    checkable: true
-                    text: "目标路线"
-                    display: QQC2.AbstractButton.IconOnly
-                    onClicked: root.currentPage = 2
-                    PlasmaComponents3.ToolTip.text: text
-                }
-                GlassToolButton {
                     icon.name: root.unreadCount > 0 ? "notifications" : "notifications-disabled"
                     text: root.unreadCount > 0 ? "未读提醒 " + root.unreadCount : "提醒"
                     display: QQC2.AbstractButton.IconOnly
@@ -788,6 +781,28 @@ PlasmoidItem {
                         icon.name: "help-about"
                         onTriggered: helpDialog.open()
                     }
+                }
+            }
+
+            PlasmaComponents3.TabBar {
+                Layout.fillWidth: true
+                currentIndex: root.currentPage
+                onCurrentIndexChanged: {
+                    if (root.currentPage !== currentIndex)
+                        root.currentPage = currentIndex
+                }
+
+                PlasmaComponents3.TabButton {
+                    text: "待办"
+                    icon.name: "view-calendar-tasks"
+                }
+                PlasmaComponents3.TabButton {
+                    text: "便签"
+                    icon.name: "document-edit"
+                }
+                PlasmaComponents3.TabButton {
+                    text: "目标"
+                    icon.name: "flag"
                 }
             }
 
@@ -1138,10 +1153,10 @@ PlasmoidItem {
                         Kirigami.PlaceholderMessage {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: root.document.goals.length === 0
+                            visible: root.goalCount === 0
                             icon.name: "flag"
                             text: "建立你的第一条目标路线"
-                            explanation: "把大目标拆成带前置条件的小目标，完成一项后解锁下一项。"
+                            explanation: "先定义想达成的结果，再把它拆成可逐步解锁的小目标。"
                             helpfulAction: Kirigami.Action {
                                 text: "新建大目标"
                                 icon.name: "list-add"
@@ -1151,13 +1166,13 @@ PlasmoidItem {
 
                         Kirigami.AbstractCard {
                             Layout.fillWidth: true
-                            visible: root.currentGoal !== null
+                            visible: root.goalCount > 0
 
                             background: Kirigami.ShadowedRectangle {
                                 radius: root.cardRadius
                                 color: root.glassSurface
                                 border.width: 1
-                                border.color: root.currentGoal && root.currentGoal.completed_at !== null
+                                border.color: root.currentGoalCompleted
                                               ? Kirigami.Theme.highlightColor : root.glassBorder
                                 shadow.size: Kirigami.Units.smallSpacing
                                 shadow.color: root.glassShadow
@@ -1169,32 +1184,73 @@ PlasmoidItem {
 
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    PlasmaComponents3.ComboBox {
-                                        id: goalSelector
+                                    Rectangle {
+                                        Layout.preferredWidth: Kirigami.Units.gridUnit * 2.5
+                                        Layout.preferredHeight: width
+                                        radius: width / 2
+                                        color: root.accentWash
+                                        border.width: 1
+                                        border.color: Qt.rgba(Kirigami.Theme.highlightColor.r,
+                                                              Kirigami.Theme.highlightColor.g,
+                                                              Kirigami.Theme.highlightColor.b, 0.36)
+                                        Kirigami.Icon {
+                                            anchors.centerIn: parent
+                                            width: Kirigami.Units.iconSizes.smallMedium
+                                            height: width
+                                            source: root.currentGoalCompleted ? "checkmark" : "flag"
+                                        }
+                                    }
+
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        model: {
-                                            root.revision
-                                            return root.document.goals
+                                        spacing: 0
+                                        PlasmaComponents3.Label {
+                                            Layout.fillWidth: true
+                                            text: root.currentGoalTitle
+                                            font.pixelSize: Kirigami.Theme.defaultFont.pixelSize * 1.12
+                                            font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
                                         }
-                                        textRole: "title"
-                                        currentIndex: {
-                                            for (let index = 0; index < root.document.goals.length; ++index) {
-                                                if (root.document.goals[index].id === root.currentGoal?.id)
-                                                    return index
-                                            }
-                                            return 0
+                                        PlasmaComponents3.Label {
+                                            text: root.currentGoalCompleted ? "已达成" : "正在推进"
+                                            color: root.currentGoalCompleted
+                                                   ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.highlightColor
+                                            font: Kirigami.Theme.smallFont
                                         }
-                                        onActivated: function(index) {
-                                            if (index >= 0 && index < root.document.goals.length)
-                                                root.selectedGoalId = root.document.goals[index].id
-                                        }
+                                    }
+
+                                    PlasmaComponents3.ToolButton {
+                                        id: switchGoalButton
+                                        visible: root.goalCount > 1
+                                        icon.name: "view-list-tree"
+                                        text: "切换大目标"
+                                        display: QQC2.AbstractButton.IconOnly
+                                        onClicked: goalSwitchMenu.popup(switchGoalButton, 0, height)
+                                        PlasmaComponents3.ToolTip.text: text
                                     }
                                     PlasmaComponents3.ToolButton {
                                         id: goalMenuButton
                                         icon.name: "overflow-menu"
-                                        text: "目标操作"
+                                        text: "管理当前目标"
                                         display: QQC2.AbstractButton.IconOnly
                                         onClicked: goalMenu.popup(goalMenuButton, 0, height)
+                                        PlasmaComponents3.ToolTip.text: text
+                                    }
+                                    QQC2.Menu {
+                                        id: goalSwitchMenu
+                                        Repeater {
+                                            model: {
+                                                root.revision
+                                                return root.document.goals
+                                            }
+                                            delegate: QQC2.MenuItem {
+                                                required property var modelData
+                                                text: modelData.title
+                                                checkable: true
+                                                checked: root.currentGoal && modelData.id === root.currentGoal.id
+                                                onTriggered: root.selectedGoalId = modelData.id
+                                            }
+                                        }
                                     }
                                     QQC2.Menu {
                                         id: goalMenu
@@ -1219,8 +1275,8 @@ PlasmoidItem {
 
                                 PlasmaComponents3.Label {
                                     Layout.fillWidth: true
-                                    visible: root.currentGoal && root.currentGoal.description.length > 0
-                                    text: root.currentGoal ? root.currentGoal.description : ""
+                                    visible: root.currentGoalDescription.length > 0
+                                    text: root.currentGoalDescription
                                     wrapMode: Text.Wrap
                                     maximumLineCount: 2
                                     elide: Text.ElideRight
@@ -1230,6 +1286,11 @@ PlasmoidItem {
 
                                 RowLayout {
                                     Layout.fillWidth: true
+                                    PlasmaComponents3.Label {
+                                        text: "路线进度"
+                                        opacity: 0.68
+                                        font: Kirigami.Theme.smallFont
+                                    }
                                     PlasmaComponents3.ProgressBar {
                                         Layout.fillWidth: true
                                         from: 0
@@ -1238,7 +1299,7 @@ PlasmoidItem {
                                     }
                                     PlasmaComponents3.Label {
                                         text: root.currentGoalProgress.completed + " / " + root.currentGoalProgress.total
-                                        color: root.currentGoal && root.currentGoal.completed_at !== null
+                                        color: root.currentGoalCompleted
                                                ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                                         font.weight: Font.DemiBold
                                     }
@@ -1250,7 +1311,7 @@ PlasmoidItem {
                             id: goalTree
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: root.currentGoal !== null && root.currentGoal.nodes.length > 0
+                            visible: root.currentGoalNodeCount > 0
                             goal: root.currentGoal
                             revision: root.revision
                             glassSurface: root.glassSurface
@@ -1269,10 +1330,10 @@ PlasmoidItem {
                         Kirigami.PlaceholderMessage {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: root.currentGoal !== null && root.currentGoal.nodes.length === 0
-                            icon.name: "node-add"
-                            text: "这个目标还没有路线节点"
-                            explanation: "先添加不需要前置条件的起始小目标。"
+                            visible: root.goalCount > 0 && root.currentGoalNodeCount === 0
+                            icon.name: "flag"
+                            text: "从第一个小目标开始"
+                            explanation: "起始节点不需要前置条件；之后可以从它继续分支。"
                             helpfulAction: Kirigami.Action {
                                 text: "添加起始节点"
                                 icon.name: "list-add"
@@ -1282,12 +1343,12 @@ PlasmoidItem {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            visible: root.currentGoal !== null
+                            visible: root.currentGoalNodeCount > 0
                             PlasmaComponents3.Label {
                                 Layout.fillWidth: true
-                                text: root.currentGoal && root.currentGoal.completed_at !== null
+                                text: root.currentGoalCompleted
                                       ? "路线已全部完成" : "完成前置节点后会解锁后续节点"
-                                color: root.currentGoal && root.currentGoal.completed_at !== null
+                                color: root.currentGoalCompleted
                                        ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                                 font: Kirigami.Theme.smallFont
                                 elide: Text.ElideRight
@@ -1375,7 +1436,7 @@ PlasmoidItem {
                 font.weight: Font.DemiBold
             }
             PlasmaComponents3.Label {
-                visible: root.currentGoal && root.currentGoal.nodes.length === 0
+                visible: root.currentGoalNodeCount === 0
                 text: "第一个节点无需前置条件。"
                 opacity: 0.65
                 font: Kirigami.Theme.smallFont
@@ -1383,7 +1444,7 @@ PlasmoidItem {
             QQC2.ScrollView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                visible: root.currentGoal && root.currentGoal.nodes.length > 0
+                visible: root.currentGoalNodeCount > 0
                 clip: true
 
                 ColumnLayout {
@@ -1712,7 +1773,7 @@ PlasmoidItem {
         standardButtons: QQC2.Dialog.Close
         contentItem: PlasmaComponents3.Label {
             wrapMode: Text.Wrap
-            text: "LiteList 0.5 · KDE Plasma 6\n\n"
+            text: "LiteList 0.5.1 · KDE Plasma 6\n\n"
                 + "输入待办后按回车添加；任务菜单中可编辑、排序、设置提醒或删除。"
                 + "“已完成”页面保留完成记录，删除的任务可从右上角菜单恢复。\n\n"
                 + "目标路线可把大目标拆为带前置条件的小目标，并以科技树方式显示解锁关系。\n\n"

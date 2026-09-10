@@ -14,7 +14,7 @@
         "License": "MIT",
         "Name": "LiteList",
         "Name[zh_CN]": "轻单 LiteList",
-        "Version": "0.5.0",
+        "Version": "0.5.1",
         "Website": "https://github.com/Baozixu99/LiteList"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
