@@ -1881,7 +1881,7 @@ PlasmoidItem {
         standardButtons: QQC2.Dialog.Close
         contentItem: PlasmaComponents3.Label {
             wrapMode: Text.Wrap
-            text: "LiteList 0.7.2 · KDE Plasma 6\n\n"
+            text: "LiteList 0.7.3 · KDE Plasma 6\n\n"
                 + "输入待办后按回车添加；任务菜单中可编辑、排序、设置提醒或删除。"
                 + "“已完成”页面保留完成记录，删除的任务可从右上角菜单恢复。\n\n"
                 + "目标页会同时显示所有大目标；每个目标可独立折叠。节点增多时可滚动页面，宽路线可拖动空白处浏览。\n\n"

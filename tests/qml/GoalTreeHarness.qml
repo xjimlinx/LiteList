@@ -32,7 +32,7 @@ Window {
         glassBorder: Qt.rgba(1, 1, 1, 0.16)
         glassShadow: Qt.rgba(0, 0, 0, 0.22)
         accentWash: Qt.rgba(0.3, 0.62, 1, 0.18)
-        nodeSize: 2
+        nodeSize: 1
     }
 
     Timer {

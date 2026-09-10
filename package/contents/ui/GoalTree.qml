@@ -209,9 +209,11 @@ Item {
 
                     Rectangle {
                         anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.margins: 2
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.topMargin: nodeCard.effectiveShape === 2
+                                           ? Kirigami.Units.smallSpacing : 2
+                        width: nodeCard.effectiveShape === 2
+                               ? parent.width * 0.28 : parent.width - 4
                         height: 3
                         radius: 2
                         color: nodeCard.completed ? Kirigami.Theme.highlightColor
@@ -220,9 +222,12 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: nodeCard.effectiveShape === 2
-                                         ? Kirigami.Units.largeSpacing
-                                         : Kirigami.Units.smallSpacing * 1.4
+                        anchors.topMargin: Kirigami.Units.smallSpacing * 1.4
+                        anchors.bottomMargin: Kirigami.Units.smallSpacing * 1.4
+                        anchors.leftMargin: nodeCard.effectiveShape === 2
+                                            ? Kirigami.Units.gridUnit * 1.6
+                                            : Kirigami.Units.smallSpacing * 1.4
+                        anchors.rightMargin: anchors.leftMargin
                         spacing: 1
                         z: 1
 
@@ -277,6 +282,8 @@ Item {
                                 id: completionButton
                                 Layout.preferredWidth: Kirigami.Units.gridUnit * 1.55
                                 Layout.preferredHeight: width
+                                Layout.rightMargin: nodeCard.effectiveShape === 2
+                                                    ? Kirigami.Units.gridUnit * 0.7 : 0
                                 icon.name: nodeCard.completed ? "edit-undo"
                                            : nodeCard.unlocked ? "checkmark" : "lock"
                                 text: nodeCard.completed ? "撤回完成"
