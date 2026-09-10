@@ -10,6 +10,9 @@
     <entry name="backupJson" type="String">
       <default></default>
     </entry>
+    <entry name="collapsedGoalIdsJson" type="String">
+      <default>{}</default>
+    </entry>
     <entry name="glassOpacity" type="Int">
       <default>58</default>
       <min>25</min>

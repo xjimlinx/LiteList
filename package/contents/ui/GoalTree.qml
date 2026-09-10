@@ -59,12 +59,16 @@ Item {
     onLayoutDataChanged: connectionCanvas.requestPaint()
     onRevisionChanged: connectionCanvas.requestPaint()
 
-    QQC2.ScrollView {
+    Flickable {
         id: treeScroll
         anchors.fill: parent
         clip: true
+        boundsBehavior: Flickable.StopAtBounds
         contentWidth: Math.max(width, root.layoutData.width + Kirigami.Units.largeSpacing * 2)
         contentHeight: Math.max(height, root.layoutData.height + Kirigami.Units.largeSpacing)
+
+        QQC2.ScrollBar.horizontal: QQC2.ScrollBar {}
+        QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
 
         Item {
             id: treeContent

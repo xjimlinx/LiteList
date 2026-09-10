@@ -68,6 +68,17 @@ const goal = {
     ]
 }
 document.goals.push(goal)
+document.goals.push({
+    id: document.next_goal_id++,
+    title: "准备下一版本",
+    description: "与第一个大目标并行推进",
+    created_at: Store.now(),
+    completed_at: null,
+    nodes: []
+})
+const multipleGoals = Store.load(JSON.stringify(document))
+check(multipleGoals.error === "", "multiple goals were rejected")
+check(multipleGoals.document.goals.length === 2, "multiple goals were not preserved")
 check(Store.nodeUnlocked(goal, goal.nodes[0]), "root goal node should be unlocked")
 check(!Store.nodeUnlocked(goal, goal.nodes[1]), "dependent goal node unlocked too early")
 goal.nodes[0].completed_at = Store.now()
