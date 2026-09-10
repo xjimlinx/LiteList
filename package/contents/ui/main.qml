@@ -18,6 +18,7 @@ PlasmoidItem {
     property int revision: 0
     property bool archiveMode: false
     property int currentPage: 0
+    property double selectedGoalId: 0
     property string draft: ""
     property string statusText: "完全本地保存"
     property bool undoAvailable: false
@@ -79,6 +80,15 @@ PlasmoidItem {
         revision
         return Store.visibleTasks(document, archiveMode)
     }
+    readonly property var currentGoal: {
+        revision
+        const selected = Store.findGoal(document, selectedGoalId)
+        return selected || (document.goals.length > 0 ? document.goals[0] : null)
+    }
+    readonly property var currentGoalProgress: {
+        revision
+        return Store.goalProgress(currentGoal)
+    }
 
     Plasmoid.title: i18n("LiteList")
     Plasmoid.icon: "view-calendar-tasks"
@@ -123,6 +133,8 @@ PlasmoidItem {
     function loadDocument() {
         const loaded = Store.load(Plasmoid.configuration.documentJson)
         document = loaded.document
+        if (document.goals.length > 0)
+            selectedGoalId = document.goals[0].id
         revision++
         if (loaded.error.length > 0) {
             statusText = "数据读取失败，已使用空清单"
@@ -307,6 +319,199 @@ PlasmoidItem {
         }
     }
 
+    function openNewGoal() {
+        goalDialog.goalId = 0
+        goalTitleField.text = ""
+        goalDescriptionField.text = ""
+        goalDialog.open()
+        goalTitleField.forceActiveFocus()
+    }
+
+    function openEditGoal() {
+        if (!currentGoal)
+            return
+        goalDialog.goalId = currentGoal.id
+        goalTitleField.text = currentGoal.title
+        goalDescriptionField.text = currentGoal.description
+        goalDialog.open()
+        goalTitleField.forceActiveFocus()
+    }
+
+    function saveGoal() {
+        const title = goalTitleField.text.replace(/\u0000/g, "").trim().slice(0, 200)
+        if (title.length === 0)
+            return
+        const description = goalDescriptionField.text.replace(/\u0000/g, "").trim().slice(0, 2000)
+        if (goalDialog.goalId > 0) {
+            const goal = Store.findGoal(document, goalDialog.goalId)
+            if (!goal)
+                return
+            goal.title = title
+            goal.description = description
+            scheduleSave("已更新大目标")
+        } else {
+            if (document.goals.length >= 100) {
+                statusText = "大目标已达到 100 个上限"
+                return
+            }
+            const goal = {
+                id: document.next_goal_id++,
+                title: title,
+                description: description,
+                created_at: Store.now(),
+                completed_at: null,
+                nodes: []
+            }
+            document.goals.push(goal)
+            selectedGoalId = goal.id
+            currentPage = 2
+            scheduleSave("已创建大目标")
+        }
+        goalDialog.close()
+    }
+
+    function requestDeleteCurrentGoal() {
+        if (!currentGoal)
+            return
+        deleteGoalDialog.goalId = currentGoal.id
+        deleteGoalDialog.goalTitle = currentGoal.title
+        deleteGoalDialog.open()
+    }
+
+    function deleteGoal(id) {
+        for (let index = 0; index < document.goals.length; ++index) {
+            if (document.goals[index].id === id) {
+                document.goals.splice(index, 1)
+                selectedGoalId = document.goals.length > 0 ? document.goals[0].id : 0
+                scheduleSave("大目标已删除")
+                return
+            }
+        }
+    }
+
+    function openNewGoalNode() {
+        if (!currentGoal)
+            return
+        goalNodeDialog.goalId = currentGoal.id
+        goalNodeDialog.requirementIds = []
+        nodeTitleField.text = ""
+        nodeDescriptionField.text = ""
+        goalNodeDialog.open()
+        nodeTitleField.forceActiveFocus()
+    }
+
+    function saveGoalNode() {
+        const goal = Store.findGoal(document, goalNodeDialog.goalId)
+        const title = nodeTitleField.text.replace(/\u0000/g, "").trim().slice(0, 200)
+        if (!goal || title.length === 0)
+            return
+        let totalNodes = 0
+        for (let index = 0; index < document.goals.length; ++index)
+            totalNodes += document.goals[index].nodes.length
+        if (totalNodes >= 2000) {
+            statusText = "小目标已达到 2000 个上限"
+            return
+        }
+        goal.nodes.push({
+            id: document.next_node_id++,
+            title: title,
+            description: nodeDescriptionField.text.replace(/\u0000/g, "").trim().slice(0, 2000),
+            requires: goalNodeDialog.requirementIds.slice(),
+            created_at: Store.now(),
+            completed_at: null
+        })
+        goal.completed_at = null
+        goalNodeDialog.close()
+        scheduleSave("已添加小目标")
+    }
+
+    function openEditGoalNode(nodeId) {
+        const node = Store.findGoalNode(currentGoal, nodeId)
+        if (!node)
+            return
+        editGoalNodeDialog.nodeId = nodeId
+        editNodeTitleField.text = node.title
+        editNodeDescriptionField.text = node.description
+        editGoalNodeDialog.open()
+        editNodeTitleField.forceActiveFocus()
+    }
+
+    function saveEditedGoalNode() {
+        const node = Store.findGoalNode(currentGoal, editGoalNodeDialog.nodeId)
+        const title = editNodeTitleField.text.replace(/\u0000/g, "").trim().slice(0, 200)
+        if (!node || title.length === 0)
+            return
+        node.title = title
+        node.description = editNodeDescriptionField.text.replace(/\u0000/g, "").trim().slice(0, 2000)
+        editGoalNodeDialog.close()
+        scheduleSave("已更新小目标")
+    }
+
+    function requestDeleteGoalNode(nodeId) {
+        const node = Store.findGoalNode(currentGoal, nodeId)
+        if (!node)
+            return
+        for (let index = 0; index < currentGoal.nodes.length; ++index) {
+            if (currentGoal.nodes[index].requires.indexOf(nodeId) >= 0) {
+                statusText = "该节点仍是其他小目标的前置条件，无法删除"
+                return
+            }
+        }
+        deleteGoalNodeDialog.nodeId = nodeId
+        deleteGoalNodeDialog.nodeTitle = node.title
+        deleteGoalNodeDialog.open()
+    }
+
+    function deleteGoalNode(nodeId) {
+        if (!currentGoal)
+            return
+        for (let index = 0; index < currentGoal.nodes.length; ++index) {
+            if (currentGoal.nodes[index].id === nodeId) {
+                currentGoal.nodes.splice(index, 1)
+                syncGoalCompletion(currentGoal)
+                scheduleSave("小目标已删除")
+                return
+            }
+        }
+    }
+
+    function syncGoalCompletion(goal) {
+        const progress = Store.goalProgress(goal)
+        if (progress.total > 0 && progress.completed === progress.total) {
+            if (goal.completed_at === null)
+                goal.completed_at = Store.now()
+        } else {
+            goal.completed_at = null
+        }
+    }
+
+    function toggleGoalNode(nodeId) {
+        const goal = currentGoal
+        const node = Store.findGoalNode(goal, nodeId)
+        if (!goal || !node)
+            return
+        if (node.completed_at === null) {
+            if (!Store.nodeUnlocked(goal, node)) {
+                statusText = "请先完成前置小目标"
+                return
+            }
+            node.completed_at = Store.now()
+            statusText = "小目标已完成"
+        } else {
+            for (let index = 0; index < goal.nodes.length; ++index) {
+                const dependent = goal.nodes[index]
+                if (dependent.completed_at !== null && dependent.requires.indexOf(nodeId) >= 0) {
+                    statusText = "已有完成节点依赖它，暂时不能撤回"
+                    return
+                }
+            }
+            node.completed_at = null
+            statusText = "小目标已恢复"
+        }
+        syncGoalCompletion(goal)
+        scheduleSave(statusText)
+    }
+
     function showNotification(item) {
         const popup = notificationFactory.createObject(root, {
             title: item.title,
@@ -475,7 +680,7 @@ PlasmoidItem {
                         Layout.fillWidth: true
                         text: root.currentPage === 0
                               ? (root.archiveMode ? "已完成" : "近期要做")
-                              : "桌面便签"
+                              : root.currentPage === 1 ? "桌面便签" : "目标路线"
                         font.pixelSize: Kirigami.Theme.defaultFont.pixelSize * 1.35
                         font.weight: Font.DemiBold
                     }
@@ -517,6 +722,15 @@ PlasmoidItem {
                     text: "便签"
                     display: QQC2.AbstractButton.IconOnly
                     onClicked: root.currentPage = 1
+                    PlasmaComponents3.ToolTip.text: text
+                }
+                GlassToolButton {
+                    icon.name: "flag"
+                    checked: root.currentPage === 2
+                    checkable: true
+                    text: "目标路线"
+                    display: QQC2.AbstractButton.IconOnly
+                    onClicked: root.currentPage = 2
                     PlasmaComponents3.ToolTip.text: text
                 }
                 GlassToolButton {
@@ -915,6 +1129,388 @@ PlasmoidItem {
                         }
                     }
                 }
+
+                Item {
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: Kirigami.Units.smallSpacing * root.spacingFactor
+
+                        Kirigami.PlaceholderMessage {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            visible: root.document.goals.length === 0
+                            icon.name: "flag"
+                            text: "建立你的第一条目标路线"
+                            explanation: "把大目标拆成带前置条件的小目标，完成一项后解锁下一项。"
+                            helpfulAction: Kirigami.Action {
+                                text: "新建大目标"
+                                icon.name: "list-add"
+                                onTriggered: root.openNewGoal()
+                            }
+                        }
+
+                        Kirigami.AbstractCard {
+                            Layout.fillWidth: true
+                            visible: root.currentGoal !== null
+
+                            background: Kirigami.ShadowedRectangle {
+                                radius: root.cardRadius
+                                color: root.glassSurface
+                                border.width: 1
+                                border.color: root.currentGoal && root.currentGoal.completed_at !== null
+                                              ? Kirigami.Theme.highlightColor : root.glassBorder
+                                shadow.size: Kirigami.Units.smallSpacing
+                                shadow.color: root.glassShadow
+                                shadow.yOffset: 2
+                            }
+
+                            contentItem: ColumnLayout {
+                                spacing: Kirigami.Units.smallSpacing
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    PlasmaComponents3.ComboBox {
+                                        id: goalSelector
+                                        Layout.fillWidth: true
+                                        model: {
+                                            root.revision
+                                            return root.document.goals
+                                        }
+                                        textRole: "title"
+                                        currentIndex: {
+                                            for (let index = 0; index < root.document.goals.length; ++index) {
+                                                if (root.document.goals[index].id === root.currentGoal?.id)
+                                                    return index
+                                            }
+                                            return 0
+                                        }
+                                        onActivated: function(index) {
+                                            if (index >= 0 && index < root.document.goals.length)
+                                                root.selectedGoalId = root.document.goals[index].id
+                                        }
+                                    }
+                                    PlasmaComponents3.ToolButton {
+                                        id: goalMenuButton
+                                        icon.name: "overflow-menu"
+                                        text: "目标操作"
+                                        display: QQC2.AbstractButton.IconOnly
+                                        onClicked: goalMenu.popup(goalMenuButton, 0, height)
+                                    }
+                                    QQC2.Menu {
+                                        id: goalMenu
+                                        QQC2.MenuItem {
+                                            text: "新建大目标"
+                                            icon.name: "list-add"
+                                            onTriggered: root.openNewGoal()
+                                        }
+                                        QQC2.MenuItem {
+                                            text: "编辑当前目标"
+                                            icon.name: "document-edit"
+                                            onTriggered: root.openEditGoal()
+                                        }
+                                        QQC2.MenuSeparator {}
+                                        QQC2.MenuItem {
+                                            text: "删除当前目标"
+                                            icon.name: "edit-delete"
+                                            onTriggered: root.requestDeleteCurrentGoal()
+                                        }
+                                    }
+                                }
+
+                                PlasmaComponents3.Label {
+                                    Layout.fillWidth: true
+                                    visible: root.currentGoal && root.currentGoal.description.length > 0
+                                    text: root.currentGoal ? root.currentGoal.description : ""
+                                    wrapMode: Text.Wrap
+                                    maximumLineCount: 2
+                                    elide: Text.ElideRight
+                                    opacity: 0.7
+                                    font: Kirigami.Theme.smallFont
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    PlasmaComponents3.ProgressBar {
+                                        Layout.fillWidth: true
+                                        from: 0
+                                        to: 1
+                                        value: root.currentGoalProgress.ratio
+                                    }
+                                    PlasmaComponents3.Label {
+                                        text: root.currentGoalProgress.completed + " / " + root.currentGoalProgress.total
+                                        color: root.currentGoal && root.currentGoal.completed_at !== null
+                                               ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
+                                        font.weight: Font.DemiBold
+                                    }
+                                }
+                            }
+                        }
+
+                        GoalTree {
+                            id: goalTree
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            visible: root.currentGoal !== null && root.currentGoal.nodes.length > 0
+                            goal: root.currentGoal
+                            revision: root.revision
+                            glassSurface: root.glassSurface
+                            glassRaised: root.glassRaised
+                            glassBorder: root.glassBorder
+                            glassShadow: root.glassShadow
+                            accentWash: root.accentWash
+                            cardRadius: root.cardRadius
+                            motionDuration: root.motionDuration
+                            denseMode: Plasmoid.configuration.denseMode
+                            onToggleNode: function(nodeId) { root.toggleGoalNode(nodeId) }
+                            onEditNode: function(nodeId) { root.openEditGoalNode(nodeId) }
+                            onDeleteNode: function(nodeId) { root.requestDeleteGoalNode(nodeId) }
+                        }
+
+                        Kirigami.PlaceholderMessage {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            visible: root.currentGoal !== null && root.currentGoal.nodes.length === 0
+                            icon.name: "node-add"
+                            text: "这个目标还没有路线节点"
+                            explanation: "先添加不需要前置条件的起始小目标。"
+                            helpfulAction: Kirigami.Action {
+                                text: "添加起始节点"
+                                icon.name: "list-add"
+                                onTriggered: root.openNewGoalNode()
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            visible: root.currentGoal !== null
+                            PlasmaComponents3.Label {
+                                Layout.fillWidth: true
+                                text: root.currentGoal && root.currentGoal.completed_at !== null
+                                      ? "路线已全部完成" : "完成前置节点后会解锁后续节点"
+                                color: root.currentGoal && root.currentGoal.completed_at !== null
+                                       ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
+                                font: Kirigami.Theme.smallFont
+                                elide: Text.ElideRight
+                            }
+                            PlasmaComponents3.Button {
+                                text: "添加小目标"
+                                icon.name: "list-add"
+                                onClicked: root.openNewGoalNode()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    QQC2.Dialog {
+        id: goalDialog
+        property double goalId: 0
+        parent: root
+        anchors.centerIn: parent
+        width: Math.min(root.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 27)
+        modal: true
+        title: goalId > 0 ? "编辑大目标" : "新建大目标"
+        standardButtons: QQC2.Dialog.Cancel
+
+        contentItem: ColumnLayout {
+            PlasmaComponents3.Label { text: "目标名称" }
+            PlasmaComponents3.TextField {
+                id: goalTitleField
+                Layout.fillWidth: true
+                placeholderText: "例如：发布 LiteList 1.0"
+                maximumLength: 200
+                Keys.onReturnPressed: root.saveGoal()
+            }
+            PlasmaComponents3.Label { text: "说明（可选）" }
+            PlasmaComponents3.TextArea {
+                id: goalDescriptionField
+                Layout.fillWidth: true
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 5
+                placeholderText: "写下完成标准或为什么要做这件事"
+                wrapMode: TextEdit.Wrap
+            }
+            PlasmaComponents3.Button {
+                Layout.alignment: Qt.AlignRight
+                text: goalDialog.goalId > 0 ? "保存" : "创建目标"
+                icon.name: "document-save"
+                highlighted: true
+                enabled: goalTitleField.text.trim().length > 0
+                onClicked: root.saveGoal()
+            }
+        }
+    }
+
+    QQC2.Dialog {
+        id: goalNodeDialog
+        property double goalId: 0
+        property var requirementIds: []
+        parent: root
+        anchors.centerIn: parent
+        width: Math.min(root.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 29)
+        height: Math.min(root.height - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 28)
+        modal: true
+        title: "添加小目标"
+        standardButtons: QQC2.Dialog.Cancel
+
+        contentItem: ColumnLayout {
+            PlasmaComponents3.Label { text: "小目标名称" }
+            PlasmaComponents3.TextField {
+                id: nodeTitleField
+                Layout.fillWidth: true
+                placeholderText: "例如：完成交互原型"
+                maximumLength: 200
+            }
+            PlasmaComponents3.Label { text: "说明（可选）" }
+            PlasmaComponents3.TextArea {
+                id: nodeDescriptionField
+                Layout.fillWidth: true
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 4
+                placeholderText: "简要说明该节点的完成标准"
+                wrapMode: TextEdit.Wrap
+            }
+            PlasmaComponents3.Label {
+                text: "前置条件（可多选）"
+                font.weight: Font.DemiBold
+            }
+            PlasmaComponents3.Label {
+                visible: root.currentGoal && root.currentGoal.nodes.length === 0
+                text: "第一个节点无需前置条件。"
+                opacity: 0.65
+                font: Kirigami.Theme.smallFont
+            }
+            QQC2.ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: root.currentGoal && root.currentGoal.nodes.length > 0
+                clip: true
+
+                ColumnLayout {
+                    width: goalNodeDialog.availableWidth - Kirigami.Units.largeSpacing
+                    Repeater {
+                        model: root.currentGoal ? root.currentGoal.nodes : []
+                        delegate: PlasmaComponents3.CheckBox {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            text: modelData.title + (modelData.completed_at !== null ? " · 已完成" : "")
+                            checked: goalNodeDialog.requirementIds.indexOf(modelData.id) >= 0
+                            onToggled: {
+                                const next = goalNodeDialog.requirementIds.slice()
+                                const index = next.indexOf(modelData.id)
+                                if (checked && index < 0)
+                                    next.push(modelData.id)
+                                else if (!checked && index >= 0)
+                                    next.splice(index, 1)
+                                goalNodeDialog.requirementIds = next
+                            }
+                        }
+                    }
+                }
+            }
+            PlasmaComponents3.Button {
+                Layout.alignment: Qt.AlignRight
+                text: "添加到路线"
+                icon.name: "list-add"
+                highlighted: true
+                enabled: nodeTitleField.text.trim().length > 0
+                onClicked: root.saveGoalNode()
+            }
+        }
+    }
+
+    QQC2.Dialog {
+        id: editGoalNodeDialog
+        property double nodeId: 0
+        parent: root
+        anchors.centerIn: parent
+        width: Math.min(root.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 27)
+        modal: true
+        title: "编辑小目标"
+        standardButtons: QQC2.Dialog.Cancel
+
+        contentItem: ColumnLayout {
+            PlasmaComponents3.TextField {
+                id: editNodeTitleField
+                Layout.fillWidth: true
+                placeholderText: "小目标名称"
+                maximumLength: 200
+            }
+            PlasmaComponents3.TextArea {
+                id: editNodeDescriptionField
+                Layout.fillWidth: true
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 5
+                placeholderText: "说明（可选）"
+                wrapMode: TextEdit.Wrap
+            }
+            PlasmaComponents3.Label {
+                text: "为避免意外形成循环，编辑时不修改前置条件；如需重建关系，请先删除后重新添加。"
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                opacity: 0.65
+                font: Kirigami.Theme.smallFont
+            }
+            PlasmaComponents3.Button {
+                Layout.alignment: Qt.AlignRight
+                text: "保存"
+                icon.name: "document-save"
+                highlighted: true
+                enabled: editNodeTitleField.text.trim().length > 0
+                onClicked: root.saveEditedGoalNode()
+            }
+        }
+    }
+
+    QQC2.Dialog {
+        id: deleteGoalDialog
+        property double goalId: 0
+        property string goalTitle: ""
+        parent: root
+        anchors.centerIn: parent
+        modal: true
+        title: "删除大目标"
+        standardButtons: QQC2.Dialog.Cancel
+        contentItem: ColumnLayout {
+            PlasmaComponents3.Label {
+                Layout.fillWidth: true
+                text: "确定删除“" + deleteGoalDialog.goalTitle + "”及其全部路线节点吗？此操作无法撤销。"
+                wrapMode: Text.Wrap
+            }
+            PlasmaComponents3.Button {
+                Layout.alignment: Qt.AlignRight
+                text: "确认删除"
+                icon.name: "edit-delete"
+                onClicked: {
+                    root.deleteGoal(deleteGoalDialog.goalId)
+                    deleteGoalDialog.close()
+                }
+            }
+        }
+    }
+
+    QQC2.Dialog {
+        id: deleteGoalNodeDialog
+        property double nodeId: 0
+        property string nodeTitle: ""
+        parent: root
+        anchors.centerIn: parent
+        modal: true
+        title: "删除小目标"
+        standardButtons: QQC2.Dialog.Cancel
+        contentItem: ColumnLayout {
+            PlasmaComponents3.Label {
+                Layout.fillWidth: true
+                text: "确定删除“" + deleteGoalNodeDialog.nodeTitle + "”吗？"
+                wrapMode: Text.Wrap
+            }
+            PlasmaComponents3.Button {
+                Layout.alignment: Qt.AlignRight
+                text: "确认删除"
+                icon.name: "edit-delete"
+                onClicked: {
+                    root.deleteGoalNode(deleteGoalNodeDialog.nodeId)
+                    deleteGoalNodeDialog.close()
+                }
             }
         }
     }
@@ -1116,9 +1712,10 @@ PlasmoidItem {
         standardButtons: QQC2.Dialog.Close
         contentItem: PlasmaComponents3.Label {
             wrapMode: Text.Wrap
-            text: "LiteList 0.4 · KDE Plasma 6\n\n"
+            text: "LiteList 0.5 · KDE Plasma 6\n\n"
                 + "输入待办后按回车添加；任务菜单中可编辑、排序、设置提醒或删除。"
                 + "“已完成”页面保留完成记录，删除的任务可从右上角菜单恢复。\n\n"
+                + "目标路线可把大目标拆为带前置条件的小目标，并以科技树方式显示解锁关系。\n\n"
                 + "便签与清单保存在当前 Plasma 小部件的配置中，不需要登录或联网。"
                 + "提醒由 KDE 通知系统显示；Plasma 必须保持运行。"
         }

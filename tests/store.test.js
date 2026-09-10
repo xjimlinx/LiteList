@@ -54,4 +54,31 @@ Store.addTasks(document, "A\nB")
 document.tasks[1].id = document.tasks[0].id
 check(Store.load(JSON.stringify(document)).error.length > 0, "duplicate IDs were accepted")
 
+document = Store.defaultDocument()
+const goal = {
+    id: document.next_goal_id++,
+    title: "发布 Plasma 版本",
+    description: "完成首个公开版本",
+    created_at: Store.now(),
+    completed_at: null,
+    nodes: [
+        { id: document.next_node_id++, title: "完成界面", description: "", requires: [], created_at: Store.now(), completed_at: null },
+        { id: document.next_node_id++, title: "完成测试", description: "", requires: [1], created_at: Store.now(), completed_at: null },
+        { id: document.next_node_id++, title: "发布", description: "", requires: [1, 2], created_at: Store.now(), completed_at: null }
+    ]
+}
+document.goals.push(goal)
+check(Store.nodeUnlocked(goal, goal.nodes[0]), "root goal node should be unlocked")
+check(!Store.nodeUnlocked(goal, goal.nodes[1]), "dependent goal node unlocked too early")
+goal.nodes[0].completed_at = Store.now()
+check(Store.nodeUnlocked(goal, goal.nodes[1]), "dependent goal node stayed locked")
+check(Store.goalProgress(goal).completed === 1, "goal progress is incorrect")
+const layout = Store.goalLayout(goal, 150, 80, 24, 48)
+check(layout.nodes.length === 3, "goal layout lost nodes")
+check(layout.nodes[1].level === 1 && layout.nodes[2].level === 2, "goal prerequisite levels are incorrect")
+
+const cyclic = Store.clone(document)
+cyclic.goals[0].nodes[0].requires = [3]
+check(Store.load(JSON.stringify(cyclic)).error.length > 0, "cyclic prerequisites were accepted")
+
 console.log("Store.js: all model checks passed")

@@ -36,6 +36,7 @@ kpackagetool6 --type Plasma/Applet --remove io.github.baozixu99.litelist
 - 完成、恢复、编辑、删除、撤销，以及上移/下移排序
 - 独立的已完成列表和最近删除恢复
 - 小部件内便签，可创建、编辑和删除
+- “目标路线”支持大目标、小目标、多前置条件和科技树式分支连线
 - 到点提醒和可选的提前提醒，使用 KDE 原生通知显示
 - JSON 导入/导出，兼容原 Windows 版的版本 1/2 数据结构
 - 所有内容保存到当前 Plasma 小部件实例的 KConfig 配置，不需要登录或联网
@@ -53,6 +54,17 @@ kpackagetool6 --type Plasma/Applet --remove io.github.baozixu99.litelist
 - 悬停动画、品牌标题和底部保存状态
 
 设置修改后会由 Plasma 自动保存，并立即反映在小部件上。
+
+### 大目标与目标路线
+
+顶部旗帜按钮进入“目标路线”。大目标用于描述最终成果，小目标是路线中的节点：
+
+1. 新建一个大目标，例如“发布 LiteList 1.0”。
+2. 添加没有前置条件的起始节点。
+3. 添加后续小目标时，可以勾选一个或多个已有节点作为前置条件。
+4. 前置节点全部完成后，后续节点才会解锁。
+
+路线会按依赖层级自动排列并绘制分支连线。一个节点被其他节点依赖时不能直接删除；已有完成节点依赖某项时，也不能贸然撤回该前置项。普通待办仍保持扁平、快速的操作方式，不会被强制放入目标树。
 
 提醒时间使用本地时间，格式为：
 
@@ -76,7 +88,7 @@ kpackagetool6 --type Plasma/Applet --remove io.github.baozixu99.litelist
 2. 在 Plasma 小部件中打开“更多”→“JSON 导入 / 导出”。
 3. 用原 JSON 替换文本框内容，点击“从上方 JSON 导入”。
 
-任务、完成状态、显式设置的提醒、便签和通知记录会被读取。Windows 窗口坐标不会在 Plasma 中使用，因为桌面小部件的位置由 Plasma 自己管理。
+任务、完成状态、显式设置的提醒、便签和通知记录会被读取。导入旧数据时会自动补充空的目标路线字段。Windows 窗口坐标不会在 Plasma 中使用，因为桌面小部件的位置由 Plasma 自己管理。
 
 ## 与原 Windows 版的差异
 
@@ -113,9 +125,15 @@ package/
 ├── metadata.json
 └── contents/
     ├── code/Store.js       数据校验、迁移、时间和提醒规则
-    ├── config/main.xml     每实例 KConfig 存储定义
-    └── ui/main.qml         Plasma 6 界面与 KDE 通知集成
-tests/store.test.js         数据模型测试
+    ├── config/
+    │   ├── config.qml      Plasma 配置页注册
+    │   └── main.xml        每实例 KConfig 存储定义
+    └── ui/
+        ├── configAppearance.qml  玻璃外观设置
+        ├── GoalTree.qml          目标依赖布局、连线和节点卡片
+        └── main.qml              Plasma 6 主界面与 KDE 通知集成
+tests/store.test.js               数据模型测试
+tests/qml/GoalTreeHarness.qml     目标树渲染测试
 ```
 
 ## 许可

@@ -5,7 +5,7 @@
   <kcfgfile name=""/>
   <group name="General">
     <entry name="documentJson" type="String">
-      <default>{"version":2,"next_id":1,"tasks":[],"settings":{},"notes":[],"notifications":[]}</default>
+      <default>{"version":2,"next_id":1,"next_goal_id":1,"next_node_id":1,"tasks":[],"settings":{},"notes":[],"goals":[],"notifications":[]}</default>
     </entry>
     <entry name="backupJson" type="String">
       <default></default>
