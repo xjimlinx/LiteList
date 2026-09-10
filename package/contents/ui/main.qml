@@ -22,26 +22,45 @@ PlasmoidItem {
     property string statusText: "完全本地保存"
     property bool undoAvailable: false
 
+    readonly property real glassAlpha: Math.max(0.25, Math.min(0.95,
+        Number(Plasmoid.configuration.glassOpacity) / 100))
+    readonly property real cardAlpha: Math.max(0.35, Math.min(1,
+        Number(Plasmoid.configuration.cardOpacity) / 100))
+    readonly property real accentAlpha: Math.max(0, Math.min(0.45,
+        Number(Plasmoid.configuration.accentStrength) / 100))
+    readonly property real borderAlpha: Math.max(0, Math.min(0.5,
+        Number(Plasmoid.configuration.borderStrength) / 100))
+    readonly property real shadowAlpha: Math.max(0, Math.min(0.5,
+        Number(Plasmoid.configuration.shadowStrength) / 100))
+    readonly property real cornerFactor: Math.max(0.6, Math.min(1.8,
+        Number(Plasmoid.configuration.cornerScale) / 100))
+    readonly property real spacingFactor: Plasmoid.configuration.denseMode ? 0.68 : 1
+    readonly property int motionDuration: Plasmoid.configuration.animationsEnabled
+                                          ? Kirigami.Units.shortDuration : 0
+    readonly property real panelRadius: Kirigami.Units.cornerRadius * 2 * cornerFactor
+    readonly property real cardRadius: Kirigami.Units.cornerRadius * 1.3 * cornerFactor
+
     readonly property color glassSurface: Qt.rgba(
         Kirigami.Theme.backgroundColor.r,
         Kirigami.Theme.backgroundColor.g,
         Kirigami.Theme.backgroundColor.b,
-        0.58)
+        glassAlpha)
     readonly property color glassRaised: Qt.rgba(
         Kirigami.Theme.backgroundColor.r,
         Kirigami.Theme.backgroundColor.g,
         Kirigami.Theme.backgroundColor.b,
-        0.78)
+        cardAlpha)
     readonly property color glassBorder: Qt.rgba(
         Kirigami.Theme.textColor.r,
         Kirigami.Theme.textColor.g,
         Kirigami.Theme.textColor.b,
-        0.16)
+        borderAlpha)
     readonly property color accentWash: Qt.rgba(
         Kirigami.Theme.highlightColor.r,
         Kirigami.Theme.highlightColor.g,
         Kirigami.Theme.highlightColor.b,
-        0.13)
+        accentAlpha)
+    readonly property color glassShadow: Qt.rgba(0, 0, 0, shadowAlpha)
 
     readonly property int pendingCount: {
         revision
@@ -79,7 +98,7 @@ PlasmoidItem {
         hoverEnabled: true
 
         background: Kirigami.ShadowedRectangle {
-            radius: Kirigami.Units.cornerRadius * 1.25
+            radius: root.cardRadius
             color: glassButton.checked ? root.accentWash
                   : glassButton.hovered ? root.glassRaised
                   : Qt.rgba(Kirigami.Theme.backgroundColor.r,
@@ -92,11 +111,11 @@ PlasmoidItem {
                                     Kirigami.Theme.highlightColor.b, 0.48)
                           : root.glassBorder
             shadow.size: glassButton.hovered ? Kirigami.Units.smallSpacing : 0
-            shadow.color: Qt.rgba(0, 0, 0, 0.16)
+            shadow.color: root.glassShadow
             shadow.yOffset: 1
 
             Behavior on color {
-                ColorAnimation { duration: Kirigami.Units.shortDuration }
+                ColorAnimation { duration: root.motionDuration }
             }
         }
     }
@@ -393,12 +412,12 @@ PlasmoidItem {
         Kirigami.ShadowedRectangle {
             anchors.fill: parent
             anchors.margins: Kirigami.Units.smallSpacing / 2
-            radius: Kirigami.Units.cornerRadius * 2.2
+            radius: root.panelRadius
             color: root.glassSurface
             border.width: 1
             border.color: root.glassBorder
             shadow.size: Kirigami.Units.largeSpacing
-            shadow.color: Qt.rgba(0, 0, 0, 0.22)
+            shadow.color: root.glassShadow
             shadow.yOffset: 3
             z: -2
         }
@@ -426,13 +445,14 @@ PlasmoidItem {
             x: parent.width - width * 0.58
             y: -height * 0.56
             color: root.accentWash
+            visible: root.accentAlpha > 0
             z: -1
         }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: Kirigami.Units.smallSpacing
-            spacing: Kirigami.Units.smallSpacing * 1.5
+            anchors.margins: Kirigami.Units.smallSpacing * root.spacingFactor
+            spacing: Kirigami.Units.smallSpacing * 1.5 * root.spacingFactor
 
             RowLayout {
                 Layout.fillWidth: true
@@ -445,6 +465,7 @@ PlasmoidItem {
 
                     PlasmaComponents3.Label {
                         text: "L I T E L I S T"
+                        visible: Plasmoid.configuration.showBrand
                         color: Kirigami.Theme.highlightColor
                         font.pixelSize: Kirigami.Theme.smallFont.pixelSize
                         font.weight: Font.DemiBold
@@ -517,6 +538,12 @@ PlasmoidItem {
                 QQC2.Menu {
                     id: moreMenu
                     QQC2.MenuItem {
+                        text: "外观设置…"
+                        icon.name: "preferences-desktop-color"
+                        onTriggered: Plasmoid.internalAction("configure").trigger()
+                    }
+                    QQC2.MenuSeparator {}
+                    QQC2.MenuItem {
                         text: "撤销上一步"
                         icon.name: "edit-undo"
                         enabled: root.undoAvailable
@@ -558,14 +585,14 @@ PlasmoidItem {
                 Item {
                     ColumnLayout {
                         anchors.fill: parent
-                        spacing: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.smallSpacing * root.spacingFactor
 
                         ListView {
                             id: taskList
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-                            spacing: Kirigami.Units.smallSpacing
+                            spacing: Kirigami.Units.smallSpacing * root.spacingFactor
                             model: root.shownTasks
 
                             Item {
@@ -636,7 +663,7 @@ PlasmoidItem {
                                 hoverEnabled: true
 
                                 background: Kirigami.ShadowedRectangle {
-                                    radius: Kirigami.Units.cornerRadius * 1.35
+                                    radius: root.cardRadius
                                     color: taskCard.hovered ? root.glassRaised : root.glassSurface
                                     border.width: 1
                                     border.color: taskCard.hovered
@@ -645,17 +672,17 @@ PlasmoidItem {
                                                             Kirigami.Theme.highlightColor.b, 0.38)
                                                   : root.glassBorder
                                     shadow.size: taskCard.hovered ? Kirigami.Units.smallSpacing : 0
-                                    shadow.color: Qt.rgba(0, 0, 0, 0.16)
+                                    shadow.color: root.glassShadow
                                     shadow.yOffset: 2
 
                                     Behavior on color {
-                                        ColorAnimation { duration: Kirigami.Units.shortDuration }
+                                        ColorAnimation { duration: root.motionDuration }
                                     }
                                 }
 
                                 contentItem: RowLayout {
                                     id: taskRow
-                                    spacing: Kirigami.Units.smallSpacing
+                                    spacing: Kirigami.Units.smallSpacing * root.spacingFactor
 
                                     PlasmaComponents3.CheckBox {
                                         checked: taskCard.modelData.completed_at !== null
@@ -753,12 +780,12 @@ PlasmoidItem {
                                 text: root.draft
                                 onTextChanged: root.draft = text
                                 background: Kirigami.ShadowedRectangle {
-                                    radius: Kirigami.Units.cornerRadius * 1.35
+                                    radius: root.cardRadius
                                     color: addField.activeFocus ? root.glassRaised : root.glassSurface
                                     border.width: addField.activeFocus ? 2 : 1
                                     border.color: addField.activeFocus ? Kirigami.Theme.highlightColor : root.glassBorder
                                     shadow.size: addField.activeFocus ? Kirigami.Units.smallSpacing : 0
-                                    shadow.color: Qt.rgba(0, 0, 0, 0.14)
+                                    shadow.color: root.glassShadow
                                 }
                                 Keys.onReturnPressed: function(event) {
                                     if (!(event.modifiers & Qt.ShiftModifier)) {
@@ -787,6 +814,7 @@ PlasmoidItem {
                             Item { Layout.fillWidth: true }
                             PlasmaComponents3.Label {
                                 text: root.statusText
+                                visible: Plasmoid.configuration.showStatus
                                 opacity: 0.7
                                 font: Kirigami.Theme.smallFont
                                 elide: Text.ElideRight
@@ -798,7 +826,7 @@ PlasmoidItem {
                 Item {
                     ColumnLayout {
                         anchors.fill: parent
-                        spacing: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.smallSpacing * root.spacingFactor
 
                         QQC2.ScrollView {
                             Layout.fillWidth: true
@@ -807,7 +835,7 @@ PlasmoidItem {
 
                             ColumnLayout {
                                 width: Math.max(0, fullView.width - Kirigami.Units.largeSpacing)
-                                spacing: Kirigami.Units.smallSpacing
+                                spacing: Kirigami.Units.smallSpacing * root.spacingFactor
 
                                 Kirigami.PlaceholderMessage {
                                     Layout.fillWidth: true
@@ -832,12 +860,12 @@ PlasmoidItem {
                                         Layout.fillWidth: true
 
                                         background: Kirigami.ShadowedRectangle {
-                                            radius: Kirigami.Units.cornerRadius * 1.5
+                                            radius: root.cardRadius
                                             color: root.glassSurface
                                             border.width: 1
                                             border.color: root.glassBorder
                                             shadow.size: Kirigami.Units.smallSpacing
-                                            shadow.color: Qt.rgba(0, 0, 0, 0.13)
+                                            shadow.color: root.glassShadow
                                             shadow.yOffset: 2
                                         }
 
@@ -1088,7 +1116,7 @@ PlasmoidItem {
         standardButtons: QQC2.Dialog.Close
         contentItem: PlasmaComponents3.Label {
             wrapMode: Text.Wrap
-            text: "LiteList 0.3 · KDE Plasma 6\n\n"
+            text: "LiteList 0.4 · KDE Plasma 6\n\n"
                 + "输入待办后按回车添加；任务菜单中可编辑、排序、设置提醒或删除。"
                 + "“已完成”页面保留完成记录，删除的任务可从右上角菜单恢复。\n\n"
                 + "便签与清单保存在当前 Plasma 小部件的配置中，不需要登录或联网。"

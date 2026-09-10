@@ -10,5 +10,47 @@
     <entry name="backupJson" type="String">
       <default></default>
     </entry>
+    <entry name="glassOpacity" type="Int">
+      <default>58</default>
+      <min>25</min>
+      <max>95</max>
+    </entry>
+    <entry name="cardOpacity" type="Int">
+      <default>78</default>
+      <min>35</min>
+      <max>100</max>
+    </entry>
+    <entry name="accentStrength" type="Int">
+      <default>13</default>
+      <min>0</min>
+      <max>45</max>
+    </entry>
+    <entry name="borderStrength" type="Int">
+      <default>16</default>
+      <min>0</min>
+      <max>50</max>
+    </entry>
+    <entry name="shadowStrength" type="Int">
+      <default>22</default>
+      <min>0</min>
+      <max>50</max>
+    </entry>
+    <entry name="cornerScale" type="Int">
+      <default>110</default>
+      <min>60</min>
+      <max>180</max>
+    </entry>
+    <entry name="denseMode" type="Bool">
+      <default>false</default>
+    </entry>
+    <entry name="animationsEnabled" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="showBrand" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="showStatus" type="Bool">
+      <default>true</default>
+    </entry>
   </group>
 </kcfg>
