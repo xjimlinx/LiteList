@@ -297,7 +297,6 @@ PlasmoidItem {
     }
 
     function addNote() {
-        commitVisibleNotes()
         try {
             const id = Store.addNote(document)
             const note = Store.findNote(document, id)
@@ -317,7 +316,6 @@ PlasmoidItem {
     }
 
     function deleteNote(id) {
-        commitVisibleNotes()
         try {
             Store.deleteNote(document, id)
             syncingNoteModel = true
@@ -347,16 +345,6 @@ PlasmoidItem {
             })
         }
         syncingNoteModel = false
-    }
-
-    function commitVisibleNotes() {
-        if (!noteRepeater)
-            return
-        for (let index = 0; index < noteRepeater.count; ++index) {
-            const card = noteRepeater.itemAt(index)
-            if (card)
-                card.commit()
-        }
     }
 
     function openNewGoal() {
@@ -1068,7 +1056,6 @@ PlasmoidItem {
                                 }
 
                                 Repeater {
-                                    id: noteRepeater
                                     model: noteListModel
 
                                     delegate: Kirigami.AbstractCard {
@@ -1856,7 +1843,6 @@ PlasmoidItem {
                             dataMessage.text = "无法导入：" + loaded.error
                             return
                         }
-                        root.commitVisibleNotes()
                         Plasmoid.configuration.backupJson = JSON.stringify(root.document)
                         root.document = loaded.document
                         root.rebuildNoteModel()
