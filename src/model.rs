@@ -145,6 +145,8 @@ pub struct Goal {
     #[serde(default)]
     pub completed_at: Option<u64>,
     #[serde(default)]
+    pub terminated_at: Option<u64>,
+    #[serde(default)]
     pub nodes: Vec<GoalNode>,
 }
 
@@ -176,6 +178,9 @@ impl Goal {
     }
 
     pub fn node_unlocked(&self, node_id: u64) -> bool {
+        if self.terminated_at.is_some() {
+            return false;
+        }
         let Some(node) = self.find_node(node_id) else {
             return false;
         };
@@ -270,6 +275,10 @@ impl Goal {
     }
 
     fn sync_completion(&mut self, timestamp: u64) {
+        if self.terminated_at.is_some() {
+            self.completed_at = None;
+            return;
+        }
         let progress = self.progress();
         self.completed_at = if progress.total > 0 && progress.completed == progress.total {
             self.completed_at.or(Some(timestamp))
@@ -387,6 +396,9 @@ impl Document {
                 || !goal_ids.insert(goal.id)
             {
                 return Err("大目标包含无效内容或重复 ID".into());
+            }
+            if goal.terminated_at.is_some() {
+                goal.completed_at = None;
             }
             total_nodes = total_nodes
                 .checked_add(goal.nodes.len())
@@ -521,6 +533,7 @@ impl Document {
                 .collect(),
             created_at: now(),
             completed_at: None,
+            terminated_at: None,
             nodes: vec![],
         });
         Ok(id)
@@ -561,6 +574,29 @@ impl Document {
         Ok(())
     }
 
+    pub fn toggle_goal_termination(
+        &mut self,
+        goal_id: u64,
+        timestamp: u64,
+    ) -> Result<bool, String> {
+        let goal = self
+            .goals
+            .iter_mut()
+            .find(|goal| goal.id == goal_id)
+            .ok_or("找不到大目标")?;
+        if goal.terminated_at.is_some() {
+            goal.terminated_at = None;
+            goal.sync_completion(timestamp);
+            return Ok(false);
+        }
+        if goal.completed_at.is_some() {
+            return Err("已正常完成的大目标无需终止".into());
+        }
+        goal.terminated_at = Some(timestamp);
+        goal.completed_at = None;
+        Ok(true)
+    }
+
     pub fn add_goal_node(
         &mut self,
         goal_id: u64,
@@ -587,6 +623,9 @@ impl Document {
             .iter_mut()
             .find(|goal| goal.id == goal_id)
             .ok_or("找不到大目标")?;
+        if goal.terminated_at.is_some() {
+            return Err("大目标已终止，请先恢复后再修改路线".into());
+        }
         let mut seen = HashSet::new();
         let requires: Vec<u64> = requires.into_iter().filter(|id| seen.insert(*id)).collect();
         if requires.iter().any(|id| goal.find_node(*id).is_none()) {
@@ -627,11 +666,18 @@ impl Document {
         if title.is_empty() {
             return Err("请输入小目标名称".into());
         }
-        let node = self
+        let goal = self
             .goals
             .iter_mut()
             .find(|goal| goal.id == goal_id)
-            .and_then(|goal| goal.nodes.iter_mut().find(|node| node.id == node_id))
+            .ok_or("找不到大目标")?;
+        if goal.terminated_at.is_some() {
+            return Err("大目标已终止，请先恢复后再修改路线".into());
+        }
+        let node = goal
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == node_id)
             .ok_or("找不到小目标")?;
         node.title = title;
         node.description = description
@@ -650,6 +696,9 @@ impl Document {
             .iter_mut()
             .find(|goal| goal.id == goal_id)
             .ok_or("找不到大目标")?;
+        if goal.terminated_at.is_some() {
+            return Err("大目标已终止，请先恢复后再修改路线".into());
+        }
         if goal
             .nodes
             .iter()
@@ -678,6 +727,9 @@ impl Document {
             .iter_mut()
             .find(|goal| goal.id == goal_id)
             .ok_or("找不到大目标")?;
+        if goal.terminated_at.is_some() {
+            return Err("大目标已终止，请先恢复后再继续".into());
+        }
         let node = goal.find_node(node_id).ok_or("找不到小目标")?;
         let completing = node.completed_at.is_none();
         if completing && !goal.node_unlocked(node_id) {
@@ -1072,6 +1124,7 @@ mod tests {
         assert_eq!(document.goals.len(), 2);
         assert_eq!(document.goals[0].nodes[1].shape, 2);
         assert_eq!(document.goals[0].nodes[2].requires, vec![1, 2]);
+        assert_eq!(document.goals[1].terminated_at, Some(1789056000000));
         let encoded = serde_json::to_string(&document).unwrap();
         let decoded: Document = serde_json::from_str(&encoded).unwrap();
         assert_eq!(decoded.goals, document.goals);
@@ -1116,6 +1169,20 @@ mod tests {
                 .level,
             2
         );
+        assert_eq!(document.toggle_goal_termination(goal_id, 50).unwrap(), true);
+        assert_eq!(document.find_goal(goal_id).unwrap().terminated_at, Some(50));
+        assert!(!document.find_goal(goal_id).unwrap().node_unlocked(ui));
+        assert!(document.toggle_goal_node(goal_id, ui, 60).is_err());
+        assert!(
+            document
+                .add_goal_node(goal_id, "不应添加", "", vec![], -1)
+                .is_err()
+        );
+        assert_eq!(
+            document.toggle_goal_termination(goal_id, 70).unwrap(),
+            false
+        );
+        assert_eq!(document.find_goal(goal_id).unwrap().terminated_at, None);
         assert!(document.toggle_goal_node(goal_id, test, 100).is_err());
         assert_eq!(document.toggle_goal_node(goal_id, ui, 100).unwrap(), true);
         assert_eq!(document.toggle_goal_node(goal_id, test, 200).unwrap(), true);
@@ -1125,6 +1192,7 @@ mod tests {
             true
         );
         assert_eq!(document.find_goal(goal_id).unwrap().completed_at, Some(300));
+        assert!(document.toggle_goal_termination(goal_id, 400).is_err());
         document
             .update_goal(goal_id, "统一功能", "保持平台原生界面")
             .unwrap();

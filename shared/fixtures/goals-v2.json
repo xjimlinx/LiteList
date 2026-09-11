@@ -24,6 +24,7 @@
       "description": "完成首个公开版本",
       "created_at": 1788969600000,
       "completed_at": null,
+      "terminated_at": null,
       "nodes": [
         {
           "id": 1,
@@ -60,6 +61,7 @@
       "description": "与第一个大目标并行推进",
       "created_at": 1788969600000,
       "completed_at": null,
+      "terminated_at": 1789056000000,
       "nodes": []
     }
   ],

@@ -632,6 +632,7 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                 for goal in &view.doc.goals {
                     let y = 124. + content_y - view.scroll;
                     let progress = goal.progress();
+                    let terminated = goal.terminated_at.is_some();
                     let collapsed = view.collapsed_goals.contains(&goal.id);
                     let header_height = 80.;
                     if y + header_height > 122. && y < content_bottom {
@@ -653,6 +654,8 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                             16.,
                             if goal.completed_at.is_some() {
                                 accent
+                            } else if terminated {
+                                palette.divider
                             } else {
                                 palette.input
                             },
@@ -660,6 +663,8 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                         c.text(
                             if goal.completed_at.is_some() {
                                 "✓"
+                            } else if terminated {
+                                "×"
                             } else {
                                 "◆"
                             },
@@ -670,6 +675,8 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                             12.,
                             if goal.completed_at.is_some() {
                                 palette.checkmark
+                            } else if terminated {
+                                muted
                             } else {
                                 accent
                             },
@@ -704,6 +711,8 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                                 progress.total,
                                 if goal.completed_at.is_some() {
                                     "已完成"
+                                } else if terminated {
+                                    "已终止"
                                 } else {
                                     "进行中"
                                 }
@@ -743,7 +752,16 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                             false,
                         );
                         c.round(w - 61., y + 10., 39., 25., 8., palette.input);
-                        c.text("+", w - 48., y + 11., 20., 20., 15., accent, true);
+                        c.text(
+                            "+",
+                            w - 48.,
+                            y + 11.,
+                            20.,
+                            20.,
+                            15.,
+                            if terminated { muted } else { accent },
+                            true,
+                        );
                         hits.push(Hit {
                             action: Action::EditGoal(goal.id),
                             x: 58.,
@@ -758,19 +776,25 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                             width: 48.,
                             height: 44.,
                         });
-                        hits.push(Hit {
-                            action: Action::AddNode(goal.id),
-                            x: w - 64.,
-                            y,
-                            width: 46.,
-                            height: 44.,
-                        });
+                        if !terminated {
+                            hits.push(Hit {
+                                action: Action::AddNode(goal.id),
+                                x: w - 64.,
+                                y,
+                                width: 46.,
+                                height: 44.,
+                            });
+                        }
                     }
                     content_y += header_height;
                     if !collapsed {
                         if goal.nodes.is_empty() {
                             c.text(
-                                "还没有小目标，点击右上角 + 添加起始节点",
+                                if terminated {
+                                    "目标已终止；从编辑面板恢复后可继续"
+                                } else {
+                                    "还没有小目标，点击右上角 + 添加起始节点"
+                                },
                                 24.,
                                 y + header_height + 16.,
                                 w - 48.,
@@ -883,7 +907,9 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                                         false,
                                     );
                                 }
-                                let label = if node.completed_at.is_some() {
+                                let label = if terminated {
+                                    "已终止"
+                                } else if node.completed_at.is_some() {
                                     "恢复"
                                 } else if unlocked {
                                     "完成"
@@ -896,7 +922,7 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                                     58.,
                                     20.,
                                     7.,
-                                    if unlocked || node.completed_at.is_some() {
+                                    if !terminated && (unlocked || node.completed_at.is_some()) {
                                         palette.hover
                                     } else {
                                         0x08000000
@@ -909,29 +935,31 @@ pub fn draw(hwnd: HWND, view: View<'_>) -> Result<Layout, String> {
                                     48.,
                                     17.,
                                     9.,
-                                    if unlocked || node.completed_at.is_some() {
+                                    if !terminated && (unlocked || node.completed_at.is_some()) {
                                         accent
                                     } else {
                                         muted
                                     },
                                     false,
                                 );
-                                hits.push(Hit {
-                                    action: Action::EditNode(goal.id, node.id),
-                                    x: x + 3.,
-                                    y: node_y + 3.,
-                                    width: 136.,
-                                    height: 92.,
-                                });
-                                // Added after the card hit so reverse hit-testing gives the
-                                // explicit completion control priority over editing.
-                                hits.push(Hit {
-                                    action: Action::CompleteNode(goal.id, node.id),
-                                    x: x + 7.,
-                                    y: node_y + 67.,
-                                    width: 64.,
-                                    height: 27.,
-                                });
+                                if !terminated {
+                                    hits.push(Hit {
+                                        action: Action::EditNode(goal.id, node.id),
+                                        x: x + 3.,
+                                        y: node_y + 3.,
+                                        width: 136.,
+                                        height: 92.,
+                                    });
+                                    // Added after the card hit so reverse hit-testing gives the
+                                    // explicit completion control priority over editing.
+                                    hits.push(Hit {
+                                        action: Action::CompleteNode(goal.id, node.id),
+                                        x: x + 7.,
+                                        y: node_y + 67.,
+                                        width: 64.,
+                                        height: 27.,
+                                    });
+                                }
                             }
                             content_y += tree.height + 18.;
                         }

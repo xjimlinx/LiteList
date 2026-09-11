@@ -34,6 +34,7 @@ pub enum Event {
     Pin(HWND),
     SaveGoal(HWND),
     DeleteGoal(HWND),
+    ToggleGoalTermination(HWND),
     SaveGoalNode(HWND),
     DeleteGoalNode(HWND),
 }
@@ -116,6 +117,9 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM) -> LR
                                 _ => {}
                             }
                         }
+                    }
+                    206 if matches!(c.kind, Kind::Goal) => {
+                        signal(c, Event::ToggleGoalTermination(hwnd))
                     }
                     _ => {}
                 }
@@ -288,6 +292,7 @@ unsafe fn layout(hwnd: HWND, c: &Context) {
             place(302, 18., 84., w - 36., 22.);
             place(102, 18., 108., w - 36., h - 178.);
             place(205, 18., h - 47., 82., 31.);
+            place(206, 108., h - 47., 92., 31.);
             place(201, w - 202., h - 47., 88., 31.);
             place(202, w - 104., h - 47., 86., 31.);
         }
@@ -591,6 +596,22 @@ pub unsafe fn goal(main: HWND, value: Option<&Goal>) -> Result<HWND, String> {
         WS_TABSTOP | BS_PUSHBUTTON as u32,
     );
     EnableWindow(delete, value.is_some() as i32);
+    let termination = control(
+        hwnd,
+        "BUTTON",
+        if value.is_some_and(|goal| goal.terminated_at.is_some()) {
+            "恢复目标"
+        } else {
+            "终止目标"
+        },
+        206,
+        WS_TABSTOP | BS_PUSHBUTTON as u32,
+    );
+    EnableWindow(
+        termination,
+        value.is_some_and(|goal| goal.terminated_at.is_some() || goal.completed_at.is_none())
+            as i32,
+    );
     control(
         hwnd,
         "BUTTON",

@@ -133,8 +133,12 @@ function normalizeDocument(value) {
                 created_at: Number(sourceGoal.created_at) || now(),
                 completed_at: sourceGoal.completed_at === null || sourceGoal.completed_at === undefined
                               ? null : Number(sourceGoal.completed_at),
+                terminated_at: sourceGoal.terminated_at === null || sourceGoal.terminated_at === undefined
+                               ? null : Number(sourceGoal.terminated_at),
                 nodes: []
             }
+            if (goal.terminated_at !== null)
+                goal.completed_at = null
             if (!Array.isArray(sourceGoal.nodes))
                 sourceGoal.nodes = []
             totalNodes += sourceGoal.nodes.length
@@ -280,6 +284,10 @@ function findGoalNode(goal, id) {
     return null
 }
 
+function goalTerminated(goal) {
+    return Boolean(goal && goal.terminated_at !== null && goal.terminated_at !== undefined)
+}
+
 function findNote(document, id) {
     for (let index = 0; index < document.notes.length; ++index) {
         if (document.notes[index].id === id)
@@ -332,6 +340,8 @@ function deleteNote(document, id) {
 function nodeUnlocked(goal, node) {
     if (!goal || !node)
         return false
+    if (goalTerminated(goal))
+        return false
     for (let index = 0; index < node.requires.length; ++index) {
         const requirement = findGoalNode(goal, node.requires[index])
         if (!requirement || requirement.completed_at === null)
@@ -370,6 +380,7 @@ function addGoal(document, title, description, timestamp) {
         description: cleanGoalText(description, 2000),
         created_at: Number.isFinite(timestamp) ? timestamp : now(),
         completed_at: null,
+        terminated_at: null,
         nodes: []
     })
     return id
@@ -396,10 +407,28 @@ function deleteGoal(document, goalId) {
     throw new Error("找不到大目标")
 }
 
+function toggleGoalTermination(document, goalId, timestamp) {
+    const goal = findGoal(document, goalId)
+    if (!goal)
+        throw new Error("找不到大目标")
+    if (goalTerminated(goal)) {
+        goal.terminated_at = null
+        syncGoalCompletion(goal, timestamp)
+        return false
+    }
+    if (goal.completed_at !== null)
+        throw new Error("已正常完成的大目标无需终止")
+    goal.terminated_at = Number.isFinite(timestamp) ? timestamp : now()
+    goal.completed_at = null
+    return true
+}
+
 function addGoalNode(document, goalId, title, description, requires, shape, timestamp) {
     const goal = findGoal(document, goalId)
     if (!goal)
         throw new Error("找不到大目标")
+    if (goalTerminated(goal))
+        throw new Error("大目标已终止，请先恢复后再修改路线")
     let totalNodes = 0
     for (let index = 0; index < document.goals.length; ++index)
         totalNodes += document.goals[index].nodes.length
@@ -434,7 +463,12 @@ function addGoalNode(document, goalId, title, description, requires, shape, time
 }
 
 function updateGoalNode(document, goalId, nodeId, title, description, shape) {
-    const node = findGoalNode(findGoal(document, goalId), nodeId)
+    const goal = findGoal(document, goalId)
+    if (!goal)
+        throw new Error("找不到大目标")
+    if (goalTerminated(goal))
+        throw new Error("大目标已终止，请先恢复后再修改路线")
+    const node = findGoalNode(goal, nodeId)
     if (!node)
         throw new Error("找不到小目标")
     const cleanTitle = cleanGoalText(title, 200)
@@ -446,6 +480,8 @@ function updateGoalNode(document, goalId, nodeId, title, description, shape) {
 }
 
 function goalNodeDeletionError(goal, nodeId) {
+    if (goalTerminated(goal))
+        return "大目标已终止，请先恢复后再修改路线"
     if (!findGoalNode(goal, nodeId))
         return "找不到小目标"
     for (let index = 0; index < goal.nodes.length; ++index) {
@@ -456,6 +492,10 @@ function goalNodeDeletionError(goal, nodeId) {
 }
 
 function syncGoalCompletion(goal, timestamp) {
+    if (goalTerminated(goal)) {
+        goal.completed_at = null
+        return
+    }
     const progress = goalProgress(goal)
     if (progress.total > 0 && progress.completed === progress.total) {
         if (goal.completed_at === null)
@@ -486,6 +526,8 @@ function toggleGoalNode(document, goalId, nodeId, timestamp) {
     const node = findGoalNode(goal, nodeId)
     if (!goal || !node)
         throw new Error("找不到小目标")
+    if (goalTerminated(goal))
+        throw new Error("大目标已终止，请先恢复后再继续")
     const completing = node.completed_at === null
     if (completing && !nodeUnlocked(goal, node))
         throw new Error("请先完成前置小目标")

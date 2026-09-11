@@ -89,6 +89,7 @@ const goal = {
     description: "完成首个公开版本",
     created_at: Store.now(),
     completed_at: null,
+    terminated_at: null,
     nodes: [
         { id: document.next_node_id++, title: "完成界面", description: "", requires: [], created_at: Store.now(), completed_at: null },
         { id: document.next_node_id++, title: "完成测试", description: "", requires: [1], created_at: Store.now(), completed_at: null },
@@ -103,6 +104,7 @@ document.goals.push({
     description: "与第一个大目标并行推进",
     created_at: Store.now(),
     completed_at: null,
+    terminated_at: null,
     nodes: []
 })
 const multipleGoals = Store.load(JSON.stringify(document))
@@ -132,6 +134,8 @@ check(sharedLoaded.document.goals[0].nodes[1].shape === 2,
       "shared fixture lost its per-node shape")
 check(sharedLoaded.document.goals[0].nodes[2].requires.join(",") === "1,2",
       "shared fixture lost prerequisite order")
+check(sharedLoaded.document.goals[1].terminated_at === 1789056000000,
+      "shared fixture lost large-goal termination state")
 const sharedLayout = Store.goalLayout(sharedLoaded.document.goals[0], 150, 80, 24, 48)
 check(sharedLayout.nodes.find(item => item.node.id === 2).level === 1,
       "shared fixture produced a different dependency level")
@@ -140,10 +144,28 @@ document = Store.defaultDocument()
 const managedGoalId = Store.addGoal(document, "  统一版本  ", " 跨平台规则 ", 10)
 const rootNodeId = Store.addGoalNode(document, managedGoalId, "模型", "", [], -1, 20)
 const childNodeId = Store.addGoalNode(document, managedGoalId, "界面", "", [rootNodeId], 2, 30)
+let mutationRejected = false
 check(document.goals[0].title === "统一版本", "goal title was not normalized")
 check(!Store.nodeUnlocked(document.goals[0], document.goals[0].nodes[1]),
       "managed dependent node unlocked too early")
-let mutationRejected = false
+check(Store.toggleGoalTermination(document, managedGoalId, 35),
+      "large goal was not terminated")
+check(document.goals[0].terminated_at === 35 && document.goals[0].completed_at === null,
+      "terminated goal has inconsistent status")
+check(!Store.nodeUnlocked(document.goals[0], document.goals[0].nodes[0]),
+      "terminated goal left a node unlocked")
+mutationRejected = false
+try {
+    Store.toggleGoalNode(document, managedGoalId, rootNodeId, 36)
+} catch (_) {
+    mutationRejected = true
+}
+check(mutationRejected, "terminated goal still allowed node completion")
+check(!Store.toggleGoalTermination(document, managedGoalId, 40),
+      "large goal was not restored")
+check(document.goals[0].terminated_at === null,
+      "restored goal kept its termination timestamp")
+mutationRejected = false
 try {
     Store.toggleGoalNode(document, managedGoalId, childNodeId, 40)
 } catch (_) {
@@ -155,6 +177,13 @@ check(Store.toggleGoalNode(document, managedGoalId, rootNodeId, 50),
 check(Store.toggleGoalNode(document, managedGoalId, childNodeId, 60),
       "child node was not completed")
 check(document.goals[0].completed_at === 60, "large goal was not completed automatically")
+mutationRejected = false
+try {
+    Store.toggleGoalTermination(document, managedGoalId, 65)
+} catch (_) {
+    mutationRejected = true
+}
+check(mutationRejected, "completed large goal was terminated")
 mutationRejected = false
 try {
     Store.toggleGoalNode(document, managedGoalId, rootNodeId, 70)

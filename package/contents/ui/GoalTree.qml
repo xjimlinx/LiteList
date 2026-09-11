@@ -28,6 +28,7 @@ Item {
     signal deleteNode(double nodeId)
 
     readonly property int effectiveNodeSize: denseMode ? 0 : Math.max(0, Math.min(2, nodeSize))
+    readonly property bool terminated: Store.goalTerminated(goal)
     readonly property real nodeWidth: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 7.4
                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 12
                                                                       : Kirigami.Units.gridUnit * 9.4
@@ -50,6 +51,8 @@ Item {
     }
 
     function requirementText(node) {
+        if (terminated)
+            return "目标已终止"
         if (node.requires.length === 0)
             return "起始节点"
         let remaining = 0
@@ -284,12 +287,14 @@ Item {
                                 Layout.preferredHeight: width
                                 Layout.rightMargin: nodeCard.effectiveShape === 2
                                                     ? Kirigami.Units.gridUnit * 0.7 : 0
-                                icon.name: nodeCard.completed ? "edit-undo"
+                                icon.name: root.terminated ? "process-stop"
+                                           : nodeCard.completed ? "edit-undo"
                                            : nodeCard.unlocked ? "checkmark" : "lock"
-                                text: nodeCard.completed ? "撤回完成"
+                                text: root.terminated ? "目标已终止"
+                                      : nodeCard.completed ? "撤回完成"
                                       : nodeCard.unlocked ? "完成小目标" : "前置条件尚未完成"
                                 display: QQC2.AbstractButton.IconOnly
-                                enabled: nodeCard.completed || nodeCard.unlocked
+                                enabled: !root.terminated && (nodeCard.completed || nodeCard.unlocked)
                                 onClicked: root.toggleNode(nodeCard.node.id)
                                 PlasmaComponents3.ToolTip.text: text
 
@@ -322,18 +327,20 @@ Item {
                         QQC2.MenuItem {
                             text: nodeCard.completed ? "标记为未完成" : "完成小目标"
                             icon.name: "checkmark"
-                            enabled: nodeCard.completed || nodeCard.unlocked
+                            enabled: !root.terminated && (nodeCard.completed || nodeCard.unlocked)
                             onTriggered: root.toggleNode(nodeCard.node.id)
                         }
                         QQC2.MenuItem {
                             text: "编辑"
                             icon.name: "document-edit"
+                            enabled: !root.terminated
                             onTriggered: root.editNode(nodeCard.node.id)
                         }
                         QQC2.MenuSeparator {}
                         QQC2.MenuItem {
                             text: "删除"
                             icon.name: "edit-delete"
+                            enabled: !root.terminated
                             onTriggered: root.deleteNode(nodeCard.node.id)
                         }
                     }

@@ -538,6 +538,37 @@ impl App {
                         Err(error) => error_box(&error),
                     }
                 }
+                Event::ToggleGoalTermination(h) => {
+                    let Some((Some(goal_id), panel)) = self.goal_panel else {
+                        continue;
+                    };
+                    if panel != h {
+                        continue;
+                    }
+                    match self
+                        .model
+                        .doc
+                        .toggle_goal_termination(goal_id, crate::model::now())
+                    {
+                        Ok(terminated) => {
+                            if terminated {
+                                self.collapsed_goals.insert(goal_id);
+                            } else {
+                                self.collapsed_goals.remove(&goal_id);
+                            }
+                            self.goal_panel = None;
+                            DestroyWindow(h);
+                            self.status = if terminated {
+                                "大目标已终止".into()
+                            } else {
+                                "大目标已恢复".into()
+                            };
+                            self.save();
+                            self.render();
+                        }
+                        Err(error) => error_box(&error),
+                    }
+                }
                 Event::SaveGoalNode(h) => {
                     let Some((goal_id, node_id, panel)) = self.goal_node_panel else {
                         continue;

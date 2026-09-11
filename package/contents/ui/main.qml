@@ -402,6 +402,16 @@ PlasmoidItem {
         }
     }
 
+    function toggleGoalTermination(id) {
+        try {
+            const terminated = Store.toggleGoalTermination(document, id)
+            setGoalExpanded(id, !terminated)
+            scheduleSave(terminated ? "大目标已终止" : "大目标已恢复")
+        } catch (error) {
+            statusText = String(error)
+        }
+    }
+
     function goalIsExpanded(goalId) {
         return collapsedGoalIds[String(goalId)] !== true
     }
@@ -1220,6 +1230,10 @@ PlasmoidItem {
                                             root.revision
                                             return goal.completed_at !== null
                                         }
+                                        readonly property bool terminated: {
+                                            root.revision
+                                            return Store.goalTerminated(goal)
+                                        }
 
                                         Layout.fillWidth: true
                                         spacing: Kirigami.Units.smallSpacing * root.spacingFactor
@@ -1232,7 +1246,10 @@ PlasmoidItem {
                                         color: root.glassSurface
                                         border.width: 1
                                         border.color: goalCardDelegate.completed
-                                                      ? Kirigami.Theme.highlightColor : root.glassBorder
+                                                      ? Kirigami.Theme.highlightColor
+                                                      : goalCardDelegate.terminated
+                                                        ? Kirigami.Theme.disabledTextColor
+                                                        : root.glassBorder
                                         shadow.size: Kirigami.Units.smallSpacing
                                         shadow.color: root.glassShadow
                                         shadow.yOffset: 2
@@ -1256,7 +1273,9 @@ PlasmoidItem {
                                                     anchors.centerIn: parent
                                                     width: Kirigami.Units.iconSizes.smallMedium
                                                     height: width
-                                                    source: goalCardDelegate.completed ? "checkmark" : "flag"
+                                                    source: goalCardDelegate.completed ? "checkmark"
+                                                            : goalCardDelegate.terminated
+                                                              ? "process-stop" : "flag"
                                                 }
                                             }
 
@@ -1271,11 +1290,15 @@ PlasmoidItem {
                                                     elide: Text.ElideRight
                                                 }
                                                 PlasmaComponents3.Label {
-                                                    text: (goalCardDelegate.completed ? "已达成" : "正在推进")
+                                                    text: (goalCardDelegate.completed ? "已达成"
+                                                           : goalCardDelegate.terminated
+                                                             ? "已终止" : "正在推进")
                                                           + " · " + goalCardDelegate.progress.completed
                                                           + "/" + goalCardDelegate.progress.total
                                                     color: goalCardDelegate.completed
                                                            ? Kirigami.Theme.positiveTextColor
+                                                           : goalCardDelegate.terminated
+                                                             ? Kirigami.Theme.disabledTextColor
                                                            : Kirigami.Theme.highlightColor
                                                     font: Kirigami.Theme.smallFont
                                                 }
@@ -1302,6 +1325,13 @@ PlasmoidItem {
                                                     text: "编辑大目标"
                                                     icon.name: "document-edit"
                                                     onTriggered: root.openEditGoal(goalCardDelegate.goal.id)
+                                                }
+                                                QQC2.MenuItem {
+                                                    text: goalCardDelegate.terminated ? "恢复目标" : "终止目标"
+                                                    icon.name: goalCardDelegate.terminated
+                                                               ? "media-playback-start" : "process-stop"
+                                                    enabled: !goalCardDelegate.completed
+                                                    onTriggered: root.toggleGoalTermination(goalCardDelegate.goal.id)
                                                 }
                                                 QQC2.MenuSeparator {}
                                                 QQC2.MenuItem {
@@ -1380,16 +1410,19 @@ PlasmoidItem {
                                     }
                                 }
 
-                                        Kirigami.PlaceholderMessage {
+                                Kirigami.PlaceholderMessage {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: Kirigami.Units.gridUnit * 10
                                     visible: goalCardDelegate.expanded && goalCardDelegate.nodeCount === 0
-                                    icon.name: "flag"
-                                    text: "从第一个小目标开始"
-                                    explanation: "起始节点不需要前置条件；之后可以从它继续分支。"
+                                    icon.name: goalCardDelegate.terminated ? "process-stop" : "flag"
+                                    text: goalCardDelegate.terminated ? "这个目标已经终止" : "从第一个小目标开始"
+                                    explanation: goalCardDelegate.terminated
+                                                 ? "路线仍然保留；从目标菜单恢复后可以继续。"
+                                                 : "起始节点不需要前置条件；之后可以从它继续分支。"
                                     helpfulAction: Kirigami.Action {
                                         text: "添加起始节点"
                                         icon.name: "list-add"
+                                        enabled: !goalCardDelegate.terminated
                                         onTriggered: root.openNewGoalNode(goalCardDelegate.goal.id)
                                     }
                                 }
@@ -1399,8 +1432,8 @@ PlasmoidItem {
                                     visible: goalCardDelegate.expanded && goalCardDelegate.nodeCount > 0
                                     PlasmaComponents3.Label {
                                         Layout.fillWidth: true
-                                        text: goalCardDelegate.completed
-                                              ? "路线已全部完成"
+                                        text: goalCardDelegate.completed ? "路线已全部完成"
+                                              : goalCardDelegate.terminated ? "目标已终止；恢复后可继续原路线"
                                               : "完成前置节点后解锁后续节点；拖动空白处可横向浏览"
                                         color: goalCardDelegate.completed
                                                ? Kirigami.Theme.highlightColor
@@ -1411,6 +1444,7 @@ PlasmoidItem {
                                     PlasmaComponents3.Button {
                                         text: "添加小目标"
                                         icon.name: "list-add"
+                                        enabled: !goalCardDelegate.terminated
                                         onClicked: root.openNewGoalNode(goalCardDelegate.goal.id)
                                     }
                                         }

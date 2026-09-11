@@ -79,6 +79,7 @@
         "description": { "type": "string", "maxLength": 2000 },
         "created_at": { "$ref": "#/$defs/timestamp" },
         "completed_at": { "$ref": "#/$defs/nullableTimestamp" },
+        "terminated_at": { "$ref": "#/$defs/nullableTimestamp" },
         "nodes": {
           "type": "array",
           "items": { "$ref": "#/$defs/goalNode" }
