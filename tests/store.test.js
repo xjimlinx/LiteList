@@ -57,6 +57,32 @@ document.tasks[1].id = document.tasks[0].id
 check(Store.load(JSON.stringify(document)).error.length > 0, "duplicate IDs were accepted")
 
 document = Store.defaultDocument()
+document.notes.push({
+    id: 7,
+    title: "会议记录",
+    body: "旧便签正文不能丢失",
+    visible: true,
+    topmost: false,
+    x: 0,
+    y: 0,
+    width: 360,
+    height: 360
+})
+const addedNoteId = Store.addNote(document)
+check(addedNoteId === 8, "new note ID did not follow existing notes")
+check(document.notes.length === 2, "adding a note replaced the existing list")
+check(document.notes[0].title === "会议记录"
+      && document.notes[0].body === "旧便签正文不能丢失",
+      "adding a note erased existing note content")
+Store.updateNote(document, 7, "更新后的标题", "更新后的正文")
+check(document.notes[0].title === "更新后的标题"
+      && document.notes[0].body === "更新后的正文",
+      "note update did not persist both fields")
+Store.deleteNote(document, addedNoteId)
+check(document.notes.length === 1 && document.notes[0].id === 7,
+      "deleting a note removed the wrong note")
+
+document = Store.defaultDocument()
 const goal = {
     id: document.next_goal_id++,
     title: "发布 Plasma 版本",

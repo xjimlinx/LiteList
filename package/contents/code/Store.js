@@ -280,6 +280,55 @@ function findGoalNode(goal, id) {
     return null
 }
 
+function findNote(document, id) {
+    for (let index = 0; index < document.notes.length; ++index) {
+        if (document.notes[index].id === id)
+            return document.notes[index]
+    }
+    return null
+}
+
+function addNote(document) {
+    if (document.notes.length >= 200)
+        throw new Error("便签已达到 200 张上限")
+    let largest = 0
+    for (let index = 0; index < document.notes.length; ++index)
+        largest = Math.max(largest, document.notes[index].id)
+    if (!Number.isSafeInteger(largest) || largest >= Number.MAX_SAFE_INTEGER)
+        throw new Error("便签 ID 溢出")
+    const note = {
+        id: largest + 1,
+        title: "桌面便签",
+        body: "",
+        visible: true,
+        topmost: false,
+        x: 0,
+        y: 0,
+        width: 360,
+        height: 360
+    }
+    document.notes.push(note)
+    return note.id
+}
+
+function updateNote(document, id, title, body) {
+    const note = findNote(document, id)
+    if (!note)
+        throw new Error("找不到便签")
+    note.title = stringValue(title, 150) || "桌面便签"
+    note.body = stringValue(body, 200000)
+}
+
+function deleteNote(document, id) {
+    for (let index = 0; index < document.notes.length; ++index) {
+        if (document.notes[index].id === id) {
+            document.notes.splice(index, 1)
+            return
+        }
+    }
+    throw new Error("找不到便签")
+}
+
 function nodeUnlocked(goal, node) {
     if (!goal || !node)
         return false

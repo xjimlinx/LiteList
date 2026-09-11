@@ -22,6 +22,11 @@ PlasmoidItem {
     property string draft: ""
     property string statusText: "完全本地保存"
     property bool undoAvailable: false
+    property bool syncingNoteModel: false
+
+    ListModel {
+        id: noteListModel
+    }
 
     readonly property real glassAlpha: Math.max(0.25, Math.min(0.95,
         Number(Plasmoid.configuration.glassOpacity) / 100))
@@ -130,6 +135,7 @@ PlasmoidItem {
     function loadDocument() {
         const loaded = Store.load(Plasmoid.configuration.documentJson)
         document = loaded.document
+        rebuildNoteModel()
         try {
             const collapsed = JSON.parse(Plasmoid.configuration.collapsedGoalIdsJson || "{}")
             collapsedGoalIds = collapsed && typeof collapsed === "object" ? collapsed : ({})
@@ -291,32 +297,65 @@ PlasmoidItem {
     }
 
     function addNote() {
-        if (document.notes.length >= 200) {
-            statusText = "便签已达到 200 张上限"
-            return
+        commitVisibleNotes()
+        try {
+            const id = Store.addNote(document)
+            const note = Store.findNote(document, id)
+            syncingNoteModel = true
+            noteListModel.append({
+                noteId: note.id,
+                noteTitle: note.title,
+                noteBody: note.body
+            })
+            syncingNoteModel = false
+            currentPage = 1
+            scheduleSave("已新建便签")
+        } catch (error) {
+            syncingNoteModel = false
+            statusText = String(error)
         }
-        let largest = 0
-        for (let index = 0; index < document.notes.length; ++index)
-            largest = Math.max(largest, document.notes[index].id)
-        document.notes.push({
-            id: largest + 1,
-            title: "桌面便签",
-            body: "",
-            visible: true,
-            topmost: false,
-            x: 0, y: 0, width: 360, height: 360
-        })
-        currentPage = 1
-        scheduleSave("已新建便签")
     }
 
     function deleteNote(id) {
-        for (let index = 0; index < document.notes.length; ++index) {
-            if (document.notes[index].id === id) {
-                document.notes.splice(index, 1)
-                scheduleSave("便签已删除")
-                return
+        commitVisibleNotes()
+        try {
+            Store.deleteNote(document, id)
+            syncingNoteModel = true
+            for (let index = 0; index < noteListModel.count; ++index) {
+                if (noteListModel.get(index).noteId === id) {
+                    noteListModel.remove(index)
+                    break
+                }
             }
+            syncingNoteModel = false
+            scheduleSave("便签已删除")
+        } catch (error) {
+            syncingNoteModel = false
+            statusText = String(error)
+        }
+    }
+
+    function rebuildNoteModel() {
+        syncingNoteModel = true
+        noteListModel.clear()
+        for (let index = 0; index < document.notes.length; ++index) {
+            const note = document.notes[index]
+            noteListModel.append({
+                noteId: note.id,
+                noteTitle: note.title,
+                noteBody: note.body
+            })
+        }
+        syncingNoteModel = false
+    }
+
+    function commitVisibleNotes() {
+        if (!noteRepeater)
+            return
+        for (let index = 0; index < noteRepeater.count; ++index) {
+            const card = noteRepeater.itemAt(index)
+            if (card)
+                card.commit()
         }
     }
 
@@ -1029,15 +1068,41 @@ PlasmoidItem {
                                 }
 
                                 Repeater {
-                                    model: {
-                                        root.revision
-                                        return root.document.notes
-                                    }
+                                    id: noteRepeater
+                                    model: noteListModel
 
                                     delegate: Kirigami.AbstractCard {
                                         id: noteCard
-                                        required property var modelData
+                                        required property int index
+                                        required property double noteId
+                                        required property string noteTitle
+                                        required property string noteBody
+                                        property bool editorReady: false
                                         Layout.fillWidth: true
+
+                                        function commit() {
+                                            if (!editorReady || root.syncingNoteModel)
+                                                return
+                                            try {
+                                                Store.updateNote(root.document, noteId,
+                                                                 noteTitleEditor.text,
+                                                                 noteBodyEditor.text)
+                                                if (index >= 0 && index < noteListModel.count
+                                                        && noteListModel.get(index).noteId === noteId) {
+                                                    const savedNote = Store.findNote(root.document, noteId)
+                                                    root.syncingNoteModel = true
+                                                    noteListModel.setProperty(index, "noteTitle", savedNote.title)
+                                                    noteListModel.setProperty(index, "noteBody", savedNote.body)
+                                                    root.syncingNoteModel = false
+                                                }
+                                                saveTimer.restart()
+                                            } catch (error) {
+                                                root.syncingNoteModel = false
+                                                root.statusText = String(error)
+                                            }
+                                        }
+
+                                        Component.onCompleted: editorReady = true
 
                                         background: Kirigami.ShadowedRectangle {
                                             radius: root.cardRadius
@@ -1053,32 +1118,29 @@ PlasmoidItem {
                                             RowLayout {
                                                 Layout.fillWidth: true
                                                 PlasmaComponents3.TextField {
+                                                    id: noteTitleEditor
                                                     Layout.fillWidth: true
-                                                    text: noteCard.modelData.title
+                                                    text: noteCard.noteTitle
                                                     placeholderText: "便签标题"
-                                                    onTextEdited: {
-                                                        noteCard.modelData.title = text.slice(0, 150)
-                                                        saveTimer.restart()
-                                                    }
+                                                    onTextEdited: noteCard.commit()
                                                 }
                                                 PlasmaComponents3.ToolButton {
                                                     icon.name: "edit-delete"
                                                     text: "删除便签"
                                                     display: QQC2.AbstractButton.IconOnly
-                                                    onClicked: root.deleteNote(noteCard.modelData.id)
+                                                    onClicked: root.deleteNote(noteCard.noteId)
                                                 }
                                             }
                                             PlasmaComponents3.TextArea {
+                                                id: noteBodyEditor
                                                 Layout.fillWidth: true
                                                 Layout.preferredHeight: Kirigami.Units.gridUnit * 7
-                                                text: noteCard.modelData.body
+                                                text: noteCard.noteBody
                                                 placeholderText: "写点什么……"
                                                 wrapMode: TextEdit.Wrap
                                                 onTextChanged: {
-                                                    if (activeFocus) {
-                                                        noteCard.modelData.body = text.slice(0, 200000)
-                                                        saveTimer.restart()
-                                                    }
+                                                    if (noteCard.editorReady && activeFocus)
+                                                        noteCard.commit()
                                                 }
                                             }
                                         }
@@ -1794,8 +1856,10 @@ PlasmoidItem {
                             dataMessage.text = "无法导入：" + loaded.error
                             return
                         }
+                        root.commitVisibleNotes()
                         Plasmoid.configuration.backupJson = JSON.stringify(root.document)
                         root.document = loaded.document
+                        root.rebuildNoteModel()
                         root.history = []
                         root.undoAvailable = false
                         root.scheduleSave("已导入 JSON 数据")
