@@ -464,6 +464,7 @@ PlasmoidItem {
             return
         editGoalNodeDialog.goalId = goal.id
         editGoalNodeDialog.nodeId = nodeId
+        editGoalNodeDialog.requirementIds = node.requires.slice()
         editNodeTitleField.text = node.title
         editNodeDescriptionField.text = node.description
         editNodeShapeField.currentIndex = Number.isInteger(node.shape)
@@ -477,7 +478,8 @@ PlasmoidItem {
         try {
             Store.updateGoalNode(document, editGoalNodeDialog.goalId, editGoalNodeDialog.nodeId,
                                  editNodeTitleField.text, editNodeDescriptionField.text,
-                                 editNodeShapeField.currentIndex - 1)
+                                 editNodeShapeField.currentIndex - 1,
+                                 editGoalNodeDialog.requirementIds)
             editGoalNodeDialog.close()
             scheduleSave("已更新小目标")
         } catch (error) {
@@ -1630,9 +1632,19 @@ PlasmoidItem {
         id: editGoalNodeDialog
         property double goalId: 0
         property double nodeId: 0
+        property var requirementIds: []
+        readonly property var targetGoal: {
+            root.revision
+            return Store.findGoal(root.document, goalId)
+        }
+        readonly property string requirementError: {
+            root.revision
+            return Store.goalNodeRequirementError(targetGoal, nodeId, requirementIds)
+        }
         parent: root
         anchors.centerIn: parent
-        width: Math.min(root.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 27)
+        width: Math.min(root.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 29)
+        height: Math.min(root.height - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 28)
         modal: true
         title: "编辑小目标"
         standardButtons: QQC2.Dialog.Cancel
@@ -1661,10 +1673,55 @@ PlasmoidItem {
                 }
             }
             PlasmaComponents3.Label {
-                text: "为避免意外形成循环，编辑时不修改前置条件；如需重建关系，请先删除后重新添加。"
                 Layout.fillWidth: true
+                text: "前置条件（可多选）"
+                font.weight: Font.DemiBold
+            }
+            PlasmaComponents3.Label {
+                Layout.fillWidth: true
+                text: "可直接调整依赖关系；系统会在形成回环时阻止保存。"
                 wrapMode: Text.Wrap
                 opacity: 0.65
+                font: Kirigami.Theme.smallFont
+            }
+            QQC2.ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+
+                ColumnLayout {
+                    width: editGoalNodeDialog.availableWidth - Kirigami.Units.largeSpacing
+                    Repeater {
+                        model: {
+                            root.revision
+                            return editGoalNodeDialog.targetGoal
+                                   ? editGoalNodeDialog.targetGoal.nodes.slice() : []
+                        }
+                        delegate: PlasmaComponents3.CheckBox {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            visible: modelData.id !== editGoalNodeDialog.nodeId
+                            text: modelData.title + (modelData.completed_at !== null ? " · 已完成" : "")
+                            checked: editGoalNodeDialog.requirementIds.indexOf(modelData.id) >= 0
+                            onToggled: {
+                                const next = editGoalNodeDialog.requirementIds.slice()
+                                const index = next.indexOf(modelData.id)
+                                if (checked && index < 0)
+                                    next.push(modelData.id)
+                                else if (!checked && index >= 0)
+                                    next.splice(index, 1)
+                                editGoalNodeDialog.requirementIds = next
+                            }
+                        }
+                    }
+                }
+            }
+            PlasmaComponents3.Label {
+                Layout.fillWidth: true
+                visible: editGoalNodeDialog.requirementError.length > 0
+                text: editGoalNodeDialog.requirementError
+                color: Kirigami.Theme.negativeTextColor
+                wrapMode: Text.Wrap
                 font: Kirigami.Theme.smallFont
             }
             PlasmaComponents3.Button {
@@ -1673,6 +1730,7 @@ PlasmoidItem {
                 icon.name: "document-save"
                 highlighted: true
                 enabled: editNodeTitleField.text.trim().length > 0
+                         && editGoalNodeDialog.requirementError.length === 0
                 onClicked: root.saveEditedGoalNode()
             }
         }

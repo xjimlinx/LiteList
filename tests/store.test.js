@@ -148,6 +148,20 @@ let mutationRejected = false
 check(document.goals[0].title === "统一版本", "goal title was not normalized")
 check(!Store.nodeUnlocked(document.goals[0], document.goals[0].nodes[1]),
       "managed dependent node unlocked too early")
+check(Store.goalNodeRequirementError(document.goals[0], rootNodeId, [childNodeId]).length > 0,
+      "cyclic requirement was not detected before save")
+mutationRejected = false
+try {
+    Store.updateGoalNode(document, managedGoalId, rootNodeId, "不应保存", "", -1, [childNodeId])
+} catch (_) {
+    mutationRejected = true
+}
+check(mutationRejected, "cyclic requirement update was accepted")
+check(document.goals[0].nodes[0].title === "模型" && document.goals[0].nodes[0].requires.length === 0,
+      "rejected requirement update partially changed a node")
+Store.updateGoalNode(document, managedGoalId, childNodeId, "界面", "", 2, [rootNodeId])
+check(document.goals[0].nodes[1].requires.join(",") === String(rootNodeId),
+      "valid requirement update was not saved")
 check(Store.toggleGoalTermination(document, managedGoalId, 35),
       "large goal was not terminated")
 check(document.goals[0].terminated_at === 35 && document.goals[0].completed_at === null,

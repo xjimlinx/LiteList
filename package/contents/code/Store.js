@@ -462,7 +462,50 @@ function addGoalNode(document, goalId, title, description, requires, shape, time
     return id
 }
 
-function updateGoalNode(document, goalId, nodeId, title, description, shape) {
+function goalNodeRequirementError(goal, nodeId, requires) {
+    const node = findGoalNode(goal, nodeId)
+    if (!node)
+        return "找不到小目标"
+    if (!Array.isArray(requires))
+        return "前置条件格式无效"
+
+    const uniqueRequires = []
+    for (let index = 0; index < requires.length; ++index) {
+        const required = Number(requires[index])
+        if (!Number.isSafeInteger(required) || !findGoalNode(goal, required))
+            return "小目标包含不存在的前置条件"
+        if (required === nodeId)
+            return "小目标不能将自己设为前置条件"
+        if (uniqueRequires.indexOf(required) < 0)
+            uniqueRequires.push(required)
+    }
+
+    function pathToNode(fromId, targetId, visited) {
+        if (fromId === targetId)
+            return [fromId]
+        if (visited[fromId])
+            return null
+        visited[fromId] = true
+        const from = findGoalNode(goal, fromId)
+        for (let index = 0; from && index < from.requires.length; ++index) {
+            const path = pathToNode(from.requires[index], targetId, visited)
+            if (path)
+                return [fromId].concat(path)
+        }
+        return null
+    }
+
+    for (let index = 0; index < uniqueRequires.length; ++index) {
+        const required = uniqueRequires[index]
+        if (pathToNode(required, nodeId, {})) {
+            const requiredNode = findGoalNode(goal, required)
+            return "“" + requiredNode.title + "”已依赖当前节点，不能设为前置条件（会形成回环）"
+        }
+    }
+    return ""
+}
+
+function updateGoalNode(document, goalId, nodeId, title, description, shape, requires) {
     const goal = findGoal(document, goalId)
     if (!goal)
         throw new Error("找不到大目标")
@@ -474,9 +517,26 @@ function updateGoalNode(document, goalId, nodeId, title, description, shape) {
     const cleanTitle = cleanGoalText(title, 200)
     if (cleanTitle.length === 0)
         throw new Error("请输入小目标名称")
+    let uniqueRequires = null
+    if (requires !== undefined) {
+        const requirementError = goalNodeRequirementError(goal, nodeId, requires)
+        if (requirementError.length > 0)
+            throw new Error(requirementError)
+        uniqueRequires = []
+        for (let index = 0; index < requires.length; ++index) {
+            const required = Number(requires[index])
+            if (uniqueRequires.indexOf(required) < 0)
+                uniqueRequires.push(required)
+        }
+    }
     node.title = cleanTitle
     node.description = cleanGoalText(description, 2000)
     node.shape = Number.isInteger(shape) && shape >= -1 && shape <= 2 ? shape : -1
+    if (uniqueRequires !== null) {
+        node.requires = uniqueRequires
+        node.completed_at = null
+        syncGoalCompletion(goal)
+    }
 }
 
 function goalNodeDeletionError(goal, nodeId) {
