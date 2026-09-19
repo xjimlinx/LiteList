@@ -1198,13 +1198,19 @@ PlasmoidItem {
                             visible: root.goalCount > 0
                             clip: true
                             boundsBehavior: Flickable.StopAtBounds
-                            contentWidth: width
+                            contentWidth: goalColumn.width
                             contentHeight: goalColumn.implicitHeight
-                            QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+                            QQC2.ScrollBar.vertical: QQC2.ScrollBar {
+                                id: goalScrollBar
+                                policy: QQC2.ScrollBar.AsNeeded
+                            }
 
                             ColumnLayout {
                                 id: goalColumn
-                                width: Math.max(0, goalList.width - Kirigami.Units.smallSpacing * 1.5)
+                                // The attached scrollbar is drawn over the Flickable.  Reserve its
+                                // full width plus a gutter so cards never sit underneath it.
+                                width: Math.max(0, goalList.width - goalScrollBar.width
+                                                   - Kirigami.Units.largeSpacing)
                                 spacing: Kirigami.Units.largeSpacing
 
                                 Repeater {
@@ -1410,20 +1416,46 @@ PlasmoidItem {
                                     }
                                 }
 
-                                Kirigami.PlaceholderMessage {
+                                Item {
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: Kirigami.Units.gridUnit * 10
+                                    Layout.preferredHeight: Kirigami.Units.gridUnit * 13
                                     visible: goalCardDelegate.expanded && goalCardDelegate.nodeCount === 0
-                                    icon.name: goalCardDelegate.terminated ? "process-stop" : "flag"
-                                    text: goalCardDelegate.terminated ? "这个目标已经终止" : "从第一个小目标开始"
-                                    explanation: goalCardDelegate.terminated
-                                                 ? "路线仍然保留；从目标菜单恢复后可以继续。"
-                                                 : "起始节点不需要前置条件；之后可以从它继续分支。"
-                                    helpfulAction: Kirigami.Action {
-                                        text: "添加起始节点"
-                                        icon.name: "list-add"
-                                        enabled: !goalCardDelegate.terminated
-                                        onTriggered: root.openNewGoalNode(goalCardDelegate.goal.id)
+
+                                    ColumnLayout {
+                                        anchors.centerIn: parent
+                                        width: Math.min(parent.width - Kirigami.Units.largeSpacing * 2,
+                                                        Kirigami.Units.gridUnit * 34)
+                                        spacing: Kirigami.Units.smallSpacing
+
+                                        Kirigami.Icon {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            Layout.preferredWidth: Kirigami.Units.iconSizes.huge
+                                            Layout.preferredHeight: width
+                                            source: goalCardDelegate.terminated ? "process-stop" : "flag"
+                                        }
+                                        PlasmaComponents3.Label {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: goalCardDelegate.terminated ? "这个目标已经终止" : "从第一个小目标开始"
+                                            font: Kirigami.Theme.titleFont
+                                        }
+                                        PlasmaComponents3.Label {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            Layout.fillWidth: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            wrapMode: Text.Wrap
+                                            text: goalCardDelegate.terminated
+                                                  ? "路线仍然保留；从目标菜单恢复后可以继续。"
+                                                  : "起始节点不需要前置条件；之后可以从它继续分支。"
+                                            opacity: 0.72
+                                        }
+                                        PlasmaComponents3.Button {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            Layout.topMargin: Kirigami.Units.smallSpacing
+                                            text: "添加起始节点"
+                                            icon.name: "list-add"
+                                            enabled: !goalCardDelegate.terminated
+                                            onClicked: root.openNewGoalNode(goalCardDelegate.goal.id)
+                                        }
                                     }
                                 }
 
