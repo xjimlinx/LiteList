@@ -611,12 +611,21 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
     function levelFor(node) {
         if (levels[node.id] !== undefined)
             return levels[node.id]
-        let level = 0
+        let lowestLevel = null
+        let highestLevel = 0
         for (let index = 0; index < node.requires.length; ++index) {
             const requirement = findGoalNode(goal, node.requires[index])
-            if (requirement)
-                level = Math.max(level, levelFor(requirement) + 1)
+            if (requirement) {
+                const requirementLevel = levelFor(requirement)
+                lowestLevel = lowestLevel === null
+                              ? requirementLevel : Math.min(lowestLevel, requirementLevel)
+                highestLevel = Math.max(highestLevel, requirementLevel)
+            }
         }
+        // Stage-priority ranking: a join remains alongside its latest
+        // prerequisite when another branch is still catching up. This keeps
+        // parallel milestones aligned without drawing an edge upwards.
+        const level = lowestLevel === null ? 0 : Math.max(lowestLevel + 1, highestLevel)
         levels[node.id] = level
         return level
     }
@@ -649,6 +658,7 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
     }
     const edgeSpecs = []
     let edgeNumber = 0
+    const sameRankLanes = {}
     for (let targetIndex = 0; targetIndex < goal.nodes.length; ++targetIndex) {
         const target = goal.nodes[targetIndex]
         for (let index = 0; index < target.requires.length; ++index) {
@@ -668,7 +678,12 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
                 dummyIds.push(dummyId)
             }
             connect(previousId, realItemIds[target.id])
-            edgeSpecs.push({ sourceId: sourceId, targetId: target.id, dummyIds: dummyIds })
+            const sameRank = levels[sourceId] === levels[target.id]
+            const lane = sameRank ? (sameRankLanes[levels[target.id]] || 0) : -1
+            if (sameRank)
+                sameRankLanes[levels[target.id]] = lane + 1
+            edgeSpecs.push({ sourceId: sourceId, targetId: target.id,
+                             dummyIds: dummyIds, sameRank: sameRank, lane: lane })
             ++edgeNumber
         }
     }
@@ -681,8 +696,12 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
     function reorder(level, neighbours) {
         const group = groups[level] || []
         group.sort(function(left, right) {
-            const leftNeighbours = neighbours[left.id] || []
-            const rightNeighbours = neighbours[right.id] || []
+            const leftNeighbours = (neighbours[left.id] || []).filter(function(id) {
+                return items[id] && items[id].level !== level
+            })
+            const rightNeighbours = (neighbours[right.id] || []).filter(function(id) {
+                return items[id] && items[id].level !== level
+            })
             function barycenter(ids) {
                 if (ids.length === 0)
                     return null
@@ -705,16 +724,65 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
         for (let index = 0; index < group.length; ++index)
             group[index].order = index
     }
+    function enforceSameRankOrder(level) {
+        const group = groups[level] || []
+        const order = {}
+        const pending = {}
+        const children = {}
+        for (let index = 0; index < group.length; ++index) {
+            const id = group[index].id
+            order[id] = index
+            pending[id] = 0
+            children[id] = []
+        }
+        for (let index = 0; index < group.length; ++index) {
+            const targetId = group[index].id
+            const parents = previous[targetId] || []
+            for (let parentIndex = 0; parentIndex < parents.length; ++parentIndex) {
+                const sourceId = parents[parentIndex]
+                if (items[sourceId] && items[sourceId].level === level) {
+                    ++pending[targetId]
+                    children[sourceId].push(targetId)
+                }
+            }
+        }
+        const sorted = []
+        while (sorted.length < group.length) {
+            let nextId = null
+            for (let index = 0; index < group.length; ++index) {
+                const candidate = group[index].id
+                if (pending[candidate] === 0
+                    && (nextId === null || order[candidate] < order[nextId]))
+                    nextId = candidate
+            }
+            if (nextId === null)
+                break
+            pending[nextId] = -1
+            sorted.push(items[nextId])
+            for (let index = 0; index < children[nextId].length; ++index)
+                --pending[children[nextId][index]]
+        }
+        if (sorted.length === group.length) {
+            groups[level] = sorted
+            for (let index = 0; index < sorted.length; ++index)
+                sorted[index].order = index
+        }
+    }
     for (let level = 0; level < groups.length; ++level) {
         const group = groups[level] || []
         for (let index = 0; index < group.length; ++index)
             group[index].order = index
+        enforceSameRankOrder(level)
     }
     for (let sweep = 0; sweep < 4; ++sweep) {
-        for (let level = 1; level < groups.length; ++level)
+        for (let level = 1; level < groups.length; ++level) {
             reorder(level, previous)
-        for (let level = groups.length - 2; level >= 0; --level)
+            enforceSameRankOrder(level)
+        }
+        for (let level = groups.length - 2; level >= 0; --level) {
             reorder(level, following)
+            enforceSameRankOrder(level)
+        }
     }
 
     let widest = 1
@@ -748,7 +816,8 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
             if (point)
                 waypoints.push(point)
         }
-        edges.push({ sourceId: spec.sourceId, targetId: spec.targetId, waypoints: waypoints })
+        edges.push({ sourceId: spec.sourceId, targetId: spec.targetId,
+                     waypoints: waypoints, sameRank: spec.sameRank, lane: spec.lane })
     }
     return {
         nodes: arranged,

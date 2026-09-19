@@ -172,7 +172,12 @@ Item {
                                                                    Kirigami.Theme.textColor.b, 0.12)
                         context.beginPath()
                         context.moveTo(sourceX, sourceY)
-                        if (edge.waypoints && edge.waypoints.length > 0) {
+                        if (edge.sameRank) {
+                            const laneY = source.y + root.nodeHeight
+                                          + root.verticalGap * (0.24 + (edge.lane % 3) * 0.13)
+                            context.lineTo(sourceX, laneY)
+                            context.lineTo(targetX, laneY)
+                        } else if (edge.waypoints && edge.waypoints.length > 0) {
                             let currentX = sourceX
                             for (let pointIndex = 0; pointIndex < edge.waypoints.length; ++pointIndex) {
                                 const point = edge.waypoints[pointIndex]

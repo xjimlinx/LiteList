@@ -121,7 +121,9 @@ check(Store.nodeUnlocked(goal, goal.nodes[1]), "dependent goal node stayed locke
 check(Store.goalProgress(goal).completed === 1, "goal progress is incorrect")
 const layout = Store.goalLayout(goal, 150, 80, 24, 48)
 check(layout.nodes.length === 3, "goal layout lost nodes")
-check(layout.nodes[1].level === 1 && layout.nodes[2].level === 2, "goal prerequisite levels are incorrect")
+check(layout.nodes.find(function(entry) { return entry.node.id === 2 }).level === 1
+      && layout.nodes.find(function(entry) { return entry.node.id === 3 }).level === 1,
+      "stage-priority layout did not align a joined milestone")
 
 const skippedLevelGoal = {
     nodes: [
@@ -133,14 +135,14 @@ const skippedLevelGoal = {
 }
 const skippedLevelLayout = Store.goalLayout(skippedLevelGoal, 150, 80, 24, 48)
 const skippedLevelEdge = skippedLevelLayout.edges.find(function(edge) {
-    return edge.sourceId === 10 && edge.targetId === 13
+    return edge.sourceId === 12 && edge.targetId === 13
 })
 const middleNode = skippedLevelLayout.nodes.find(function(entry) { return entry.node.id === 12 })
-check(skippedLevelEdge && skippedLevelEdge.waypoints.length === 1,
-      "an edge spanning multiple levels did not receive a virtual waypoint")
-check(skippedLevelEdge.waypoints[0].x < middleNode.x
-      || skippedLevelEdge.waypoints[0].x > middleNode.x + 150,
-      "a virtual waypoint was placed inside an intermediate node")
+const joinedNode = skippedLevelLayout.nodes.find(function(entry) { return entry.node.id === 13 })
+check(skippedLevelEdge && skippedLevelEdge.sameRank,
+      "a stage-priority dependency was not marked for horizontal routing")
+check(middleNode.level === joinedNode.level && middleNode.x < joinedNode.x,
+      "a stage-priority dependency was not aligned left to right")
 
 const cyclic = Store.clone(document)
 cyclic.goals[0].nodes[0].requires = [3]
