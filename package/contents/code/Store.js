@@ -621,89 +621,139 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
         return level
     }
     const groups = []
-    let widest = 1
+    const items = {}
+    const realItemIds = {}
+    function addItem(id, level, node) {
+        const item = { id: id, level: level, node: node, initialOrder: groups[level].length }
+        groups[level].push(item)
+        items[id] = item
+        return item
+    }
     for (let index = 0; index < goal.nodes.length; ++index) {
         const level = levelFor(goal.nodes[index])
         if (!groups[level])
             groups[level] = []
-        groups[level].push(goal.nodes[index])
-        widest = Math.max(widest, groups[level].length)
+        const itemId = "node:" + goal.nodes[index].id
+        addItem(itemId, level, goal.nodes[index])
+        realItemIds[goal.nodes[index].id] = itemId
     }
-    const coreWidth = widest * nodeWidth + (widest - 1) * horizontalGap
+    const previous = {}
+    const following = {}
+    function connect(sourceId, targetId) {
+        if (!following[sourceId])
+            following[sourceId] = []
+        if (!previous[targetId])
+            previous[targetId] = []
+        following[sourceId].push(targetId)
+        previous[targetId].push(sourceId)
+    }
+    const edgeSpecs = []
+    let edgeNumber = 0
+    for (let targetIndex = 0; targetIndex < goal.nodes.length; ++targetIndex) {
+        const target = goal.nodes[targetIndex]
+        for (let index = 0; index < target.requires.length; ++index) {
+            const sourceId = target.requires[index]
+            const source = findGoalNode(goal, sourceId)
+            if (!source)
+                continue
+            const dummyIds = []
+            let previousId = realItemIds[sourceId]
+            for (let level = levels[sourceId] + 1; level < levels[target.id]; ++level) {
+                if (!groups[level])
+                    groups[level] = []
+                const dummyId = "edge:" + sourceId + ":" + target.id + ":" + edgeNumber + ":" + level
+                addItem(dummyId, level, null)
+                connect(previousId, dummyId)
+                previousId = dummyId
+                dummyIds.push(dummyId)
+            }
+            connect(previousId, realItemIds[target.id])
+            edgeSpecs.push({ sourceId: sourceId, targetId: target.id, dummyIds: dummyIds })
+            ++edgeNumber
+        }
+    }
+
+    // Sugiyama-style ordering: virtual nodes turn each edge into single-rank
+    // segments, then alternating barycenter sweeps keep related paths close.
+    function orderFor(id) {
+        return items[id] ? items[id].order : 0
+    }
+    function reorder(level, neighbours) {
+        const group = groups[level] || []
+        group.sort(function(left, right) {
+            const leftNeighbours = neighbours[left.id] || []
+            const rightNeighbours = neighbours[right.id] || []
+            function barycenter(ids) {
+                if (ids.length === 0)
+                    return null
+                let total = 0
+                for (let index = 0; index < ids.length; ++index)
+                    total += orderFor(ids[index])
+                return total / ids.length
+            }
+            const leftCenter = barycenter(leftNeighbours)
+            const rightCenter = barycenter(rightNeighbours)
+            if (leftCenter === null && rightCenter === null)
+                return left.initialOrder - right.initialOrder
+            if (leftCenter === null)
+                return 1
+            if (rightCenter === null)
+                return -1
+            return leftCenter === rightCenter
+                   ? left.initialOrder - right.initialOrder : leftCenter - rightCenter
+        })
+        for (let index = 0; index < group.length; ++index)
+            group[index].order = index
+    }
+    for (let level = 0; level < groups.length; ++level) {
+        const group = groups[level] || []
+        for (let index = 0; index < group.length; ++index)
+            group[index].order = index
+    }
+    for (let sweep = 0; sweep < 4; ++sweep) {
+        for (let level = 1; level < groups.length; ++level)
+            reorder(level, previous)
+        for (let level = groups.length - 2; level >= 0; --level)
+            reorder(level, following)
+    }
+
+    let widest = 1
+    for (let level = 0; level < groups.length; ++level)
+        widest = Math.max(widest, (groups[level] || []).length)
+    const width = widest * nodeWidth + Math.max(0, widest - 1) * horizontalGap
     const topPadding = verticalGap
     const arranged = []
-    const entriesById = {}
+    const positions = {}
     for (let level = 0; level < groups.length; ++level) {
         const group = groups[level] || []
         const groupWidth = group.length * nodeWidth + Math.max(0, group.length - 1) * horizontalGap
-        const offset = (coreWidth - groupWidth) / 2
+        const offset = (width - groupWidth) / 2
         for (let column = 0; column < group.length; ++column) {
-            const entry = {
-                node: group[column],
-                x: offset + column * (nodeWidth + horizontalGap),
-                y: topPadding + level * (nodeHeight + verticalGap),
-                level: level
+            const item = group[column]
+            const centerX = offset + column * (nodeWidth + horizontalGap) + nodeWidth / 2
+            const y = topPadding + level * (nodeHeight + verticalGap)
+            positions[item.id] = { x: centerX, y: y }
+            if (item.node) {
+                arranged.push({ node: item.node, x: centerX - nodeWidth / 2,
+                                y: y, level: level })
             }
-            arranged.push(entry)
-            entriesById[entry.node.id] = entry
         }
     }
-
-    // A bend for an edge that skips a level would otherwise land in the
-    // middle of an intermediate card.  Give those edges dedicated outer
-    // lanes; adjacent rows retain the compact route through their gap.
-    const laneSpacing = Math.max(horizontalGap, nodeWidth * 0.36)
-    const edgeSpecs = []
-    let leftLaneCount = 0
-    let rightLaneCount = 0
-    for (let targetIndex = 0; targetIndex < arranged.length; ++targetIndex) {
-        const target = arranged[targetIndex]
-        for (let index = 0; index < target.node.requires.length; ++index) {
-            const source = entriesById[target.node.requires[index]]
-            if (!source)
-                continue
-            const longEdge = target.level - source.level > 1
-            let side = ""
-            let lane = -1
-            if (longEdge) {
-                if (source.x < target.x) {
-                    side = "left"
-                    lane = leftLaneCount++
-                } else if (source.x > target.x) {
-                    side = "right"
-                    lane = rightLaneCount++
-                } else if (leftLaneCount <= rightLaneCount) {
-                    side = "left"
-                    lane = leftLaneCount++
-                } else {
-                    side = "right"
-                    lane = rightLaneCount++
-                }
-            }
-            edgeSpecs.push({ sourceId: source.node.id, targetId: target.node.id,
-                             longEdge: longEdge, side: side, lane: lane })
-        }
-    }
-
-    const leftInset = leftLaneCount > 0 ? horizontalGap + leftLaneCount * laneSpacing : 0
-    const rightInset = rightLaneCount > 0 ? horizontalGap + rightLaneCount * laneSpacing : 0
-    for (let index = 0; index < arranged.length; ++index)
-        arranged[index].x += leftInset
     const edges = []
     for (let index = 0; index < edgeSpecs.length; ++index) {
         const spec = edgeSpecs[index]
-        let laneX = -1
-        if (spec.side === "left")
-            laneX = horizontalGap / 2 + spec.lane * laneSpacing
-        else if (spec.side === "right")
-            laneX = leftInset + coreWidth + horizontalGap / 2 + spec.lane * laneSpacing
-        edges.push({ sourceId: spec.sourceId, targetId: spec.targetId,
-                     longEdge: spec.longEdge, laneX: laneX })
+        const waypoints = []
+        for (let dummyIndex = 0; dummyIndex < spec.dummyIds.length; ++dummyIndex) {
+            const point = positions[spec.dummyIds[dummyIndex]]
+            if (point)
+                waypoints.push(point)
+        }
+        edges.push({ sourceId: spec.sourceId, targetId: spec.targetId, waypoints: waypoints })
     }
     return {
         nodes: arranged,
         edges: edges,
-        width: coreWidth + leftInset + rightInset,
+        width: width,
         height: topPadding + groups.length * nodeHeight + Math.max(0, groups.length - 1) * verticalGap
     }
 }

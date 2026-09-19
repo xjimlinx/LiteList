@@ -135,12 +135,12 @@ const skippedLevelLayout = Store.goalLayout(skippedLevelGoal, 150, 80, 24, 48)
 const skippedLevelEdge = skippedLevelLayout.edges.find(function(edge) {
     return edge.sourceId === 10 && edge.targetId === 13
 })
-const leftMostNode = Math.min.apply(null, skippedLevelLayout.nodes.map(function(entry) { return entry.x }))
-const rightMostNode = Math.max.apply(null, skippedLevelLayout.nodes.map(function(entry) { return entry.x + 150 }))
-check(skippedLevelEdge && skippedLevelEdge.longEdge,
-      "an edge spanning multiple levels was not marked for outer routing")
-check(skippedLevelEdge.laneX < leftMostNode || skippedLevelEdge.laneX > rightMostNode,
-      "an edge spanning multiple levels still runs through the node area")
+const middleNode = skippedLevelLayout.nodes.find(function(entry) { return entry.node.id === 12 })
+check(skippedLevelEdge && skippedLevelEdge.waypoints.length === 1,
+      "an edge spanning multiple levels did not receive a virtual waypoint")
+check(skippedLevelEdge.waypoints[0].x < middleNode.x
+      || skippedLevelEdge.waypoints[0].x > middleNode.x + 150,
+      "a virtual waypoint was placed inside an intermediate node")
 
 const cyclic = Store.clone(document)
 cyclic.goals[0].nodes[0].requires = [3]

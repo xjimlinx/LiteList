@@ -163,13 +163,20 @@ Item {
                                                                    Kirigami.Theme.textColor.b, 0.12)
                         context.beginPath()
                         context.moveTo(sourceX, sourceY)
-                        if (edge.longEdge) {
-                            const sourceGapY = sourceY + root.verticalGap * 0.45
+                        if (edge.waypoints && edge.waypoints.length > 0) {
+                            let currentX = sourceX
+                            for (let pointIndex = 0; pointIndex < edge.waypoints.length; ++pointIndex) {
+                                const point = edge.waypoints[pointIndex]
+                                const pointX = offsetX + point.x
+                                const aboveY = point.y - root.verticalGap * 0.45
+                                const belowY = point.y + root.nodeHeight + root.verticalGap * 0.45
+                                context.lineTo(currentX, aboveY)
+                                context.lineTo(pointX, aboveY)
+                                context.lineTo(pointX, belowY)
+                                currentX = pointX
+                            }
                             const targetGapY = targetY - root.verticalGap * 0.45
-                            const laneX = offsetX + edge.laneX
-                            context.lineTo(sourceX, sourceGapY)
-                            context.lineTo(laneX, sourceGapY)
-                            context.lineTo(laneX, targetGapY)
+                            context.lineTo(currentX, targetGapY)
                             context.lineTo(targetX, targetGapY)
                         } else {
                             const middleY = sourceY + (targetY - sourceY) / 2
