@@ -143,6 +143,18 @@ check(skippedLevelEdge && skippedLevelEdge.sameRank,
       "a stage-priority dependency was not marked for horizontal routing")
 check(middleNode.level === joinedNode.level && middleNode.x < joinedNode.x,
       "a stage-priority dependency was not aligned left to right")
+const routedSkippedLevelEdges = Store.routeGoalEdges(skippedLevelLayout, 150, 80, 24, 48)
+check(routedSkippedLevelEdges.every(function(route) { return route.points.length > 1 }),
+      "orthogonal router did not find a route")
+check(routedSkippedLevelEdges.every(function(route) {
+    for (let index = 1; index < route.points.length; ++index) {
+        const previous = route.points[index - 1]
+        const current = route.points[index]
+        if (previous.x !== current.x && previous.y !== current.y)
+            return false
+    }
+    return true
+}), "orthogonal router produced a diagonal segment")
 
 const cyclic = Store.clone(document)
 cyclic.goals[0].nodes[0].requires = [3]

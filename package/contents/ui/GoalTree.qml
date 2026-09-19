@@ -46,6 +46,10 @@ Item {
         revision
         return Store.goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap)
     }
+    readonly property var routedEdges: {
+        revision
+        return Store.routeGoalEdges(layoutData, nodeWidth, nodeHeight, horizontalGap, verticalGap)
+    }
 
     function entryFor(nodeId) {
         for (let index = 0; index < layoutData.nodes.length; ++index) {
@@ -70,6 +74,7 @@ Item {
     }
 
     onLayoutDataChanged: connectionCanvas.requestPaint()
+    onRoutedEdgesChanged: connectionCanvas.requestPaint()
     onRevisionChanged: connectionCanvas.requestPaint()
 
     Flickable {
@@ -150,9 +155,10 @@ Item {
                         context.stroke()
                     }
 
-                    const edges = root.layoutData.edges || []
-                    for (let index = 0; index < edges.length; ++index) {
-                        const edge = edges[index]
+                    const routedEdges = root.routedEdges || []
+                    for (let index = 0; index < routedEdges.length; ++index) {
+                        const routed = routedEdges[index]
+                        const edge = routed.edge
                         const source = root.entryFor(edge.sourceId)
                         const target = root.entryFor(edge.targetId)
                         if (!source || !target)
@@ -171,13 +177,19 @@ Item {
                                                                    Kirigami.Theme.textColor.g,
                                                                    Kirigami.Theme.textColor.b, 0.12)
                         context.beginPath()
-                        context.moveTo(sourceX, sourceY)
-                        if (edge.sameRank) {
+                        if (routed.points && routed.points.length > 1) {
+                            context.moveTo(offsetX + routed.points[0].x, routed.points[0].y)
+                            for (let pointIndex = 1; pointIndex < routed.points.length; ++pointIndex)
+                                context.lineTo(offsetX + routed.points[pointIndex].x,
+                                               routed.points[pointIndex].y)
+                        } else if (edge.sameRank) {
+                            context.moveTo(sourceX, sourceY)
                             const laneY = source.y + root.nodeHeight
                                           + root.verticalGap * (0.24 + (edge.lane % 3) * 0.13)
                             context.lineTo(sourceX, laneY)
                             context.lineTo(targetX, laneY)
                         } else if (edge.waypoints && edge.waypoints.length > 0) {
+                            context.moveTo(sourceX, sourceY)
                             let currentX = sourceX
                             for (let pointIndex = 0; pointIndex < edge.waypoints.length; ++pointIndex) {
                                 const point = edge.waypoints[pointIndex]
@@ -193,11 +205,13 @@ Item {
                             context.lineTo(currentX, targetGapY)
                             context.lineTo(targetX, targetGapY)
                         } else {
+                            context.moveTo(sourceX, sourceY)
                             const middleY = sourceY + (targetY - sourceY) / 2
                             context.lineTo(sourceX, middleY)
                             context.lineTo(targetX, middleY)
                         }
-                        context.lineTo(targetX, targetY)
+                        if (!routed.points || routed.points.length <= 1)
+                            context.lineTo(targetX, targetY)
                         context.stroke()
                     }
 

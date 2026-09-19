@@ -827,6 +827,217 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
     }
 }
 
+function routeGoalEdges(layout, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
+    if (!layout || !Array.isArray(layout.nodes) || !Array.isArray(layout.edges))
+        return []
+    // Grid routing is deliberately capped: a dense graph is still readable with
+    // the layered fallback, while an unbounded A* search would harm the widget.
+    if (layout.nodes.length > 180)
+        return layout.edges.map(function(edge) { return { edge: edge, points: [] } })
+
+    const grid = Math.max(6, Math.min(nodeWidth * 0.14, horizontalGap * 0.35, verticalGap * 0.35))
+    const width = Math.max(3, Math.ceil(layout.width / grid) + 3)
+    const height = Math.max(3, Math.ceil(layout.height / grid) + 3)
+    if (width * height > 48000)
+        return layout.edges.map(function(edge) { return { edge: edge, points: [] } })
+    const blocked = new Array(width * height).fill(false)
+    const occupied = new Array(width * height).fill(0)
+    const byNodeId = {}
+    const clearance = Math.max(2, grid * 0.35)
+    for (let index = 0; index < layout.nodes.length; ++index) {
+        const entry = layout.nodes[index]
+        byNodeId[entry.node.id] = entry
+        const firstX = Math.max(0, Math.floor((entry.x - clearance) / grid))
+        const lastX = Math.min(width - 1, Math.ceil((entry.x + nodeWidth + clearance) / grid))
+        const firstY = Math.max(0, Math.floor((entry.y - clearance) / grid))
+        const lastY = Math.min(height - 1, Math.ceil((entry.y + nodeHeight + clearance) / grid))
+        for (let y = firstY; y <= lastY; ++y) {
+            for (let x = firstX; x <= lastX; ++x)
+                blocked[y * width + x] = true
+        }
+    }
+    function pointIndex(point) {
+        return point.y * width + point.x
+    }
+    function gridPoint(point) {
+        return {
+            x: Math.max(0, Math.min(width - 1, Math.round(point.x / grid))),
+            y: Math.max(0, Math.min(height - 1, Math.round(point.y / grid)))
+        }
+    }
+    function drawingPoint(point) {
+        return { x: point.x * grid, y: point.y * grid }
+    }
+    function pushHeap(heap, item) {
+        heap.push(item)
+        let index = heap.length - 1
+        while (index > 0) {
+            const parent = Math.floor((index - 1) / 2)
+            if (heap[parent].score <= item.score)
+                break
+            heap[index] = heap[parent]
+            index = parent
+        }
+        heap[index] = item
+    }
+    function popHeap(heap) {
+        const result = heap[0]
+        const last = heap.pop()
+        if (heap.length === 0)
+            return result
+        let index = 0
+        while (true) {
+            let child = index * 2 + 1
+            if (child >= heap.length)
+                break
+            if (child + 1 < heap.length && heap[child + 1].score < heap[child].score)
+                ++child
+            if (heap[child].score >= last.score)
+                break
+            heap[index] = heap[child]
+            index = child
+        }
+        heap[index] = last
+        return result
+    }
+    function route(start, end) {
+        const startPoint = gridPoint(start)
+        const endPoint = gridPoint(end)
+        const startIndex = pointIndex(startPoint)
+        const endIndex = pointIndex(endPoint)
+        // Ports are always just outside their own obstacle, but explicitly
+        // clear their cells to tolerate rounding on tight compact layouts.
+        const startWasBlocked = blocked[startIndex]
+        const endWasBlocked = blocked[endIndex]
+        blocked[startIndex] = false
+        blocked[endIndex] = false
+        const costs = new Array(width * height).fill(Infinity)
+        const parents = new Array(width * height).fill(-1)
+        const directions = new Array(width * height).fill(-1)
+        const heap = []
+        costs[startIndex] = 0
+        pushHeap(heap, { index: startIndex, score: 0 })
+        const steps = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+        while (heap.length > 0) {
+            const current = popHeap(heap)
+            if (current.index === endIndex)
+                break
+            const currentCost = costs[current.index]
+            const x = current.index % width
+            const y = Math.floor(current.index / width)
+            for (let direction = 0; direction < steps.length; ++direction) {
+                const nextX = x + steps[direction][0]
+                const nextY = y + steps[direction][1]
+                if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height)
+                    continue
+                const nextIndex = nextY * width + nextX
+                if (blocked[nextIndex])
+                    continue
+                const turning = directions[current.index] >= 0
+                                && directions[current.index] !== direction ? 0.8 : 0
+                const nextCost = currentCost + 1 + turning + occupied[nextIndex] * 3.5
+                if (nextCost >= costs[nextIndex])
+                    continue
+                costs[nextIndex] = nextCost
+                parents[nextIndex] = current.index
+                directions[nextIndex] = direction
+                const distance = Math.abs(nextX - endPoint.x) + Math.abs(nextY - endPoint.y)
+                pushHeap(heap, { index: nextIndex, score: nextCost + distance })
+            }
+        }
+        if (parents[endIndex] < 0 && endIndex !== startIndex) {
+            blocked[startIndex] = startWasBlocked
+            blocked[endIndex] = endWasBlocked
+            return []
+        }
+        const path = []
+        let currentIndex = endIndex
+        while (currentIndex >= 0) {
+            path.push(drawingPoint({ x: currentIndex % width,
+                                     y: Math.floor(currentIndex / width) }))
+            if (currentIndex === startIndex)
+                break
+            currentIndex = parents[currentIndex]
+        }
+        path.reverse()
+        for (let index = 0; index < path.length; ++index) {
+            const cell = gridPoint(path[index])
+            ++occupied[pointIndex(cell)]
+        }
+        blocked[startIndex] = startWasBlocked
+        blocked[endIndex] = endWasBlocked
+        const simplified = []
+        for (let index = 0; index < path.length; ++index) {
+            const previous = simplified.length > 1 ? simplified[simplified.length - 2] : null
+            const current = path[index]
+            const last = simplified.length > 0 ? simplified[simplified.length - 1] : null
+            if (previous && last
+                && (previous.x === last.x && last.x === current.x
+                    || previous.y === last.y && last.y === current.y))
+                simplified[simplified.length - 1] = current
+            else
+                simplified.push(current)
+        }
+        return simplified
+    }
+    const routed = []
+    for (let index = 0; index < layout.edges.length; ++index) {
+        const edge = layout.edges[index]
+        const source = byNodeId[edge.sourceId]
+        const target = byNodeId[edge.targetId]
+        if (!source || !target) {
+            routed.push({ edge: edge, points: [] })
+            continue
+        }
+        let sourcePort
+        let targetPort
+        let sourceAnchor
+        let targetAnchor
+        if (source.level === target.level) {
+            const leftToRight = source.x <= target.x
+            sourceAnchor = { x: source.x + (leftToRight ? nodeWidth : 0),
+                             y: source.y + nodeHeight / 2 }
+            targetAnchor = { x: target.x + (leftToRight ? 0 : nodeWidth),
+                             y: target.y + nodeHeight / 2 }
+            sourcePort = { x: sourceAnchor.x + (leftToRight ? clearance + grid : -clearance - grid),
+                           y: sourceAnchor.y }
+            targetPort = { x: targetAnchor.x + (leftToRight ? -clearance - grid : clearance + grid),
+                           y: targetAnchor.y }
+        } else {
+            sourceAnchor = { x: source.x + nodeWidth / 2, y: source.y + nodeHeight }
+            targetAnchor = { x: target.x + nodeWidth / 2, y: target.y }
+            sourcePort = { x: sourceAnchor.x, y: sourceAnchor.y + clearance + grid }
+            targetPort = { x: targetAnchor.x, y: targetAnchor.y - clearance - grid }
+        }
+        const gridPath = route(sourcePort, targetPort)
+        const points = []
+        function addPoint(point) {
+            const last = points.length > 0 ? points[points.length - 1] : null
+            if (!last || last.x !== point.x || last.y !== point.y)
+                points.push(point)
+        }
+        function addOrthogonal(point, horizontalFirst) {
+            const last = points.length > 0 ? points[points.length - 1] : null
+            if (last && last.x !== point.x && last.y !== point.y) {
+                addPoint(horizontalFirst ? { x: point.x, y: last.y }
+                                         : { x: last.x, y: point.y })
+            }
+            addPoint(point)
+        }
+        if (gridPath.length > 0) {
+            addPoint(sourceAnchor)
+            addPoint(sourcePort)
+            addOrthogonal(gridPath[0], true)
+            for (let pointIndex = 1; pointIndex < gridPath.length; ++pointIndex)
+                addPoint(gridPath[pointIndex])
+            addOrthogonal(targetPort, false)
+            addPoint(targetAnchor)
+        }
+        routed.push({ edge: edge, points: points })
+    }
+    return routed
+}
+
 function pad(value) {
     return value < 10 ? "0" + value : String(value)
 }
