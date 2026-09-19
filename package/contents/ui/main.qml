@@ -1407,6 +1407,7 @@ PlasmoidItem {
                                     denseMode: Plasmoid.configuration.denseMode
                                     nodeShape: Number(Plasmoid.configuration.goalNodeShape)
                                     nodeSize: Number(Plasmoid.configuration.goalNodeSize)
+                                    autoCompact: Plasmoid.configuration.autoCompactGoals
                                     onToggleNode: function(nodeId) {
                                         root.toggleGoalNode(goalCardDelegate.goal.id, nodeId)
                                     }

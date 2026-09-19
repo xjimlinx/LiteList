@@ -22,21 +22,26 @@ Item {
     property bool denseMode: false
     property int nodeShape: 0
     property int nodeSize: 1
+    property bool autoCompact: true
 
     signal toggleNode(double nodeId)
     signal editNode(double nodeId)
     signal deleteNode(double nodeId)
 
-    readonly property int effectiveNodeSize: denseMode ? 0 : Math.max(0, Math.min(2, nodeSize))
+    readonly property int nodeCount: goal ? goal.nodes.length : 0
+    readonly property bool compactLayout: denseMode || (autoCompact && nodeCount > 8)
+    readonly property int effectiveNodeSize: compactLayout ? 0 : Math.max(0, Math.min(2, nodeSize))
     readonly property bool terminated: Store.goalTerminated(goal)
-    readonly property real nodeWidth: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 7.4
-                                            : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 12
-                                                                      : Kirigami.Units.gridUnit * 9.4
-    readonly property real nodeHeight: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 5.4
-                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 8.2
-                                                                       : Kirigami.Units.gridUnit * 6.4
-    readonly property real horizontalGap: Kirigami.Units.gridUnit * 1.6
-    readonly property real verticalGap: Kirigami.Units.gridUnit * 2.7
+    readonly property real nodeWidth: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 6.3
+                                            : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 10.8
+                                                                      : Kirigami.Units.gridUnit * 8.2
+    readonly property real nodeHeight: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 4.6
+                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 7.2
+                                                                       : Kirigami.Units.gridUnit * 5.7
+    readonly property real horizontalGap: Kirigami.Units.gridUnit
+                                          * (compactLayout ? 0.95 : 1.35)
+    readonly property real verticalGap: Kirigami.Units.gridUnit
+                                        * (compactLayout ? 1.35 : 2.15)
     readonly property var layoutData: {
         revision
         return Store.goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap)
@@ -129,7 +134,9 @@ Item {
                         const targetY = entry.y
                         const unlocked = Store.nodeUnlocked(root.goal, node)
                         context.strokeStyle = node.completed_at !== null
-                                              ? Kirigami.Theme.highlightColor
+                                              ? Qt.rgba(Kirigami.Theme.highlightColor.r,
+                                                        Kirigami.Theme.highlightColor.g,
+                                                        Kirigami.Theme.highlightColor.b, 0.68)
                                               : unlocked ? root.glassBorder
                                                          : Qt.rgba(Kirigami.Theme.textColor.r,
                                                                    Kirigami.Theme.textColor.g,
@@ -156,7 +163,9 @@ Item {
                         const targetY = target.y
                         const unlocked = Store.nodeUnlocked(root.goal, target.node)
                         context.strokeStyle = target.node.completed_at !== null
-                                              ? Kirigami.Theme.highlightColor
+                                              ? Qt.rgba(Kirigami.Theme.highlightColor.r,
+                                                        Kirigami.Theme.highlightColor.g,
+                                                        Kirigami.Theme.highlightColor.b, 0.68)
                                               : unlocked ? root.glassBorder
                                                          : Qt.rgba(Kirigami.Theme.textColor.r,
                                                                    Kirigami.Theme.textColor.g,
@@ -198,12 +207,16 @@ Item {
                     readonly property var node: modelData.node
                     readonly property bool completed: node.completed_at !== null
                     readonly property bool unlocked: Store.nodeUnlocked(root.goal, node)
+                    readonly property bool showDescription: !root.compactLayout
+                                                            && node.description.length > 0
                     readonly property int effectiveShape: Number.isInteger(node.shape)
                                                                   && node.shape >= 0 && node.shape <= 2
                                                           ? node.shape : root.nodeShape
                     readonly property bool textTruncated: nodeTitleLabel.truncated
-                                                          || (nodeDescriptionLabel.visible
+                                                          || (showDescription
                                                               && nodeDescriptionLabel.truncated)
+                                                          || (!showDescription
+                                                              && node.description.length > 0)
 
                     x: (treeContent.width - root.layoutData.width) / 2 + modelData.x
                     y: modelData.y
@@ -213,10 +226,12 @@ Item {
                               : effectiveShape === 2 ? height / 2 : root.cardRadius
                     color: completed ? Qt.rgba(Kirigami.Theme.highlightColor.r,
                                                Kirigami.Theme.highlightColor.g,
-                                               Kirigami.Theme.highlightColor.b, 0.22)
+                                               Kirigami.Theme.highlightColor.b, 0.12)
                                      : nodeMouse.containsMouse && unlocked ? root.glassRaised : root.glassSurface
-                    border.width: completed || nodeMouse.containsMouse ? 2 : 1
-                    border.color: completed ? Kirigami.Theme.highlightColor
+                    border.width: nodeMouse.containsMouse ? 2 : 1
+                    border.color: completed ? Qt.rgba(Kirigami.Theme.highlightColor.r,
+                                                      Kirigami.Theme.highlightColor.g,
+                                                      Kirigami.Theme.highlightColor.b, 0.68)
                                            : nodeMouse.containsMouse && unlocked
                                              ? Qt.rgba(Kirigami.Theme.highlightColor.r,
                                                        Kirigami.Theme.highlightColor.g,
@@ -245,7 +260,7 @@ Item {
                                            ? Kirigami.Units.smallSpacing : 2
                         width: nodeCard.effectiveShape === 2
                                ? parent.width * 0.28 : parent.width - 4
-                        height: 3
+                        height: root.compactLayout ? 2 : 3
                         radius: 2
                         color: nodeCard.completed ? Kirigami.Theme.highlightColor
                                                   : nodeCard.unlocked ? root.accentWash : "transparent"
@@ -253,11 +268,11 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.topMargin: Kirigami.Units.smallSpacing * 1.4
-                        anchors.bottomMargin: Kirigami.Units.smallSpacing * 1.4
+                        anchors.topMargin: Kirigami.Units.smallSpacing
+                        anchors.bottomMargin: Kirigami.Units.smallSpacing
                         anchors.leftMargin: nodeCard.effectiveShape === 2
-                                            ? Kirigami.Units.gridUnit * 1.6
-                                            : Kirigami.Units.smallSpacing * 1.4
+                                            ? Kirigami.Units.gridUnit * (root.compactLayout ? 1.2 : 1.6)
+                                            : Kirigami.Units.smallSpacing * (root.compactLayout ? 1 : 1.4)
                         anchors.rightMargin: anchors.leftMargin
                         spacing: 1
                         z: 1
@@ -272,6 +287,9 @@ Item {
                                 maximumLineCount: root.effectiveNodeSize === 0 ? 1
                                                     : root.effectiveNodeSize === 2 ? 3 : 2
                                 elide: Text.ElideRight
+                                font.pixelSize: root.compactLayout
+                                                ? Kirigami.Theme.smallFont.pixelSize
+                                                : Kirigami.Theme.defaultFont.pixelSize
                                 font.weight: Font.DemiBold
                             }
                             PlasmaComponents3.ToolButton {
@@ -286,7 +304,7 @@ Item {
                             id: nodeDescriptionLabel
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: nodeCard.node.description.length > 0
+                            visible: nodeCard.showDescription
                             text: nodeCard.node.description
                             wrapMode: Text.Wrap
                             maximumLineCount: root.effectiveNodeSize === 0 ? 1
@@ -311,10 +329,12 @@ Item {
                             }
                             PlasmaComponents3.ToolButton {
                                 id: completionButton
-                                Layout.preferredWidth: Kirigami.Units.gridUnit * 1.55
+                                Layout.preferredWidth: Kirigami.Units.gridUnit
+                                                       * (root.compactLayout ? 1.3 : 1.55)
                                 Layout.preferredHeight: width
                                 Layout.rightMargin: nodeCard.effectiveShape === 2
-                                                    ? Kirigami.Units.gridUnit * 0.7 : 0
+                                                    ? Kirigami.Units.gridUnit
+                                                      * (root.compactLayout ? 0.45 : 0.7) : 0
                                 icon.name: root.terminated ? "process-stop"
                                            : nodeCard.completed ? "edit-undo"
                                            : nodeCard.unlocked ? "checkmark" : "lock"
@@ -331,7 +351,10 @@ Item {
                                     color: completionButton.enabled ? root.accentWash : "transparent"
                                     border.width: 1
                                     border.color: completionButton.enabled
-                                                  ? Kirigami.Theme.highlightColor : root.glassBorder
+                                                  ? Qt.rgba(Kirigami.Theme.highlightColor.r,
+                                                            Kirigami.Theme.highlightColor.g,
+                                                            Kirigami.Theme.highlightColor.b, 0.68)
+                                                  : root.glassBorder
                                 }
                             }
                         }

@@ -46,6 +46,9 @@
       <min>0</min>
       <max>2</max>
     </entry>
+    <entry name="autoCompactGoals" type="Bool">
+      <default>true</default>
+    </entry>
     <entry name="borderStrength" type="Int">
       <default>16</default>
       <min>0</min>

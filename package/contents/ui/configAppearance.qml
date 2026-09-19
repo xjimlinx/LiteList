@@ -15,6 +15,7 @@ KCM.SimpleKCM {
     property alias cfg_decorativeGlowSize: decorativeGlowSize.value
     property alias cfg_goalNodeShape: goalNodeShape.currentIndex
     property alias cfg_goalNodeSize: goalNodeSize.currentIndex
+    property alias cfg_autoCompactGoals: autoCompactGoals.checked
     property alias cfg_borderStrength: borderStrength.value
     property alias cfg_shadowStrength: shadowStrength.value
     property alias cfg_cornerScale: cornerScale.value
@@ -207,6 +208,12 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: "目标节点尺寸："
             Layout.fillWidth: true
             model: ["紧凑", "标准", "宽大（适合长文字）"]
+        }
+
+        CheckBox {
+            id: autoCompactGoals
+            Kirigami.FormData.label: "目标路线："
+            text: "节点较多时自动使用紧凑布局"
         }
 
         RowLayout {
