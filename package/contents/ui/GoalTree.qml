@@ -200,6 +200,46 @@ Item {
                         context.lineTo(targetX, targetY)
                         context.stroke()
                     }
+
+                    // The cards intentionally keep a glass-like background. Remove
+                    // line pixels inside their exact outlines so transparent cards do
+                    // not make a connector appear to pass through a node.
+                    context.save()
+                    context.globalCompositeOperation = "destination-out"
+                    for (let index = 0; index < root.layoutData.nodes.length; ++index) {
+                        const entry = root.layoutData.nodes[index]
+                        const x = offsetX + entry.x
+                        const y = entry.y
+                        const sourceShape = Number(entry.node.shape)
+                        const shape = Number.isInteger(sourceShape)
+                                      && sourceShape >= 0 && sourceShape <= 2
+                                      ? sourceShape : root.nodeShape
+                        const radius = shape === 1 ? 0
+                                       : shape === 2 ? root.nodeHeight / 2 : root.cardRadius
+                        context.beginPath()
+                        if (radius <= 1) {
+                            context.rect(x, y, root.nodeWidth, root.nodeHeight)
+                        } else {
+                            const clampedRadius = Math.min(radius, root.nodeWidth / 2,
+                                                           root.nodeHeight / 2)
+                            context.moveTo(x + clampedRadius, y)
+                            context.lineTo(x + root.nodeWidth - clampedRadius, y)
+                            context.quadraticCurveTo(x + root.nodeWidth, y,
+                                                     x + root.nodeWidth, y + clampedRadius)
+                            context.lineTo(x + root.nodeWidth, y + root.nodeHeight - clampedRadius)
+                            context.quadraticCurveTo(x + root.nodeWidth, y + root.nodeHeight,
+                                                     x + root.nodeWidth - clampedRadius,
+                                                     y + root.nodeHeight)
+                            context.lineTo(x + clampedRadius, y + root.nodeHeight)
+                            context.quadraticCurveTo(x, y + root.nodeHeight,
+                                                     x, y + root.nodeHeight - clampedRadius)
+                            context.lineTo(x, y + clampedRadius)
+                            context.quadraticCurveTo(x, y, x + clampedRadius, y)
+                            context.closePath()
+                        }
+                        context.fill()
+                    }
+                    context.restore()
                 }
             }
 
