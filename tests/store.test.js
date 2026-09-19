@@ -123,6 +123,25 @@ const layout = Store.goalLayout(goal, 150, 80, 24, 48)
 check(layout.nodes.length === 3, "goal layout lost nodes")
 check(layout.nodes[1].level === 1 && layout.nodes[2].level === 2, "goal prerequisite levels are incorrect")
 
+const skippedLevelGoal = {
+    nodes: [
+        { id: 10, title: "A", requires: [], completed_at: null },
+        { id: 11, title: "B", requires: [], completed_at: null },
+        { id: 12, title: "C", requires: [11], completed_at: null },
+        { id: 13, title: "D", requires: [10, 12], completed_at: null }
+    ]
+}
+const skippedLevelLayout = Store.goalLayout(skippedLevelGoal, 150, 80, 24, 48)
+const skippedLevelEdge = skippedLevelLayout.edges.find(function(edge) {
+    return edge.sourceId === 10 && edge.targetId === 13
+})
+const leftMostNode = Math.min.apply(null, skippedLevelLayout.nodes.map(function(entry) { return entry.x }))
+const rightMostNode = Math.max.apply(null, skippedLevelLayout.nodes.map(function(entry) { return entry.x + 150 }))
+check(skippedLevelEdge && skippedLevelEdge.longEdge,
+      "an edge spanning multiple levels was not marked for outer routing")
+check(skippedLevelEdge.laneX < leftMostNode || skippedLevelEdge.laneX > rightMostNode,
+      "an edge spanning multiple levels still runs through the node area")
+
 const cyclic = Store.clone(document)
 cyclic.goals[0].nodes[0].requires = [3]
 check(Store.load(JSON.stringify(cyclic)).error.length > 0, "cyclic prerequisites were accepted")

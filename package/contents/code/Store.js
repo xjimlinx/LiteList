@@ -606,7 +606,7 @@ function toggleGoalNode(document, goalId, nodeId, timestamp) {
 
 function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
     if (!goal || goal.nodes.length === 0)
-        return { nodes: [], width: nodeWidth, height: nodeHeight }
+        return { nodes: [], edges: [], width: nodeWidth, height: nodeHeight }
     const levels = {}
     function levelFor(node) {
         if (levels[node.id] !== undefined)
@@ -629,25 +629,81 @@ function goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap) {
         groups[level].push(goal.nodes[index])
         widest = Math.max(widest, groups[level].length)
     }
-    const width = widest * nodeWidth + (widest - 1) * horizontalGap
+    const coreWidth = widest * nodeWidth + (widest - 1) * horizontalGap
     const topPadding = verticalGap
     const arranged = []
+    const entriesById = {}
     for (let level = 0; level < groups.length; ++level) {
         const group = groups[level] || []
         const groupWidth = group.length * nodeWidth + Math.max(0, group.length - 1) * horizontalGap
-        const offset = (width - groupWidth) / 2
+        const offset = (coreWidth - groupWidth) / 2
         for (let column = 0; column < group.length; ++column) {
-            arranged.push({
+            const entry = {
                 node: group[column],
                 x: offset + column * (nodeWidth + horizontalGap),
                 y: topPadding + level * (nodeHeight + verticalGap),
                 level: level
-            })
+            }
+            arranged.push(entry)
+            entriesById[entry.node.id] = entry
         }
+    }
+
+    // A bend for an edge that skips a level would otherwise land in the
+    // middle of an intermediate card.  Give those edges dedicated outer
+    // lanes; adjacent rows retain the compact route through their gap.
+    const laneSpacing = Math.max(horizontalGap, nodeWidth * 0.36)
+    const edgeSpecs = []
+    let leftLaneCount = 0
+    let rightLaneCount = 0
+    for (let targetIndex = 0; targetIndex < arranged.length; ++targetIndex) {
+        const target = arranged[targetIndex]
+        for (let index = 0; index < target.node.requires.length; ++index) {
+            const source = entriesById[target.node.requires[index]]
+            if (!source)
+                continue
+            const longEdge = target.level - source.level > 1
+            let side = ""
+            let lane = -1
+            if (longEdge) {
+                if (source.x < target.x) {
+                    side = "left"
+                    lane = leftLaneCount++
+                } else if (source.x > target.x) {
+                    side = "right"
+                    lane = rightLaneCount++
+                } else if (leftLaneCount <= rightLaneCount) {
+                    side = "left"
+                    lane = leftLaneCount++
+                } else {
+                    side = "right"
+                    lane = rightLaneCount++
+                }
+            }
+            edgeSpecs.push({ sourceId: source.node.id, targetId: target.node.id,
+                             longEdge: longEdge, side: side, lane: lane })
+        }
+    }
+
+    const leftInset = leftLaneCount > 0 ? horizontalGap + leftLaneCount * laneSpacing : 0
+    const rightInset = rightLaneCount > 0 ? horizontalGap + rightLaneCount * laneSpacing : 0
+    for (let index = 0; index < arranged.length; ++index)
+        arranged[index].x += leftInset
+    const edges = []
+    for (let index = 0; index < edgeSpecs.length; ++index) {
+        const spec = edgeSpecs[index]
+        let laneX = -1
+        if (spec.side === "left")
+            laneX = horizontalGap / 2 + spec.lane * laneSpacing
+        else if (spec.side === "right")
+            laneX = leftInset + coreWidth + horizontalGap / 2 + spec.lane * laneSpacing
+        edges.push({ sourceId: spec.sourceId, targetId: spec.targetId,
+                     longEdge: spec.longEdge, laneX: laneX })
     }
     return {
         nodes: arranged,
-        width: width,
+        edges: edges,
+        width: coreWidth + leftInset + rightInset,
         height: topPadding + groups.length * nodeHeight + Math.max(0, groups.length - 1) * verticalGap
     }
 }

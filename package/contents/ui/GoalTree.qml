@@ -123,6 +123,8 @@ Item {
                     for (let index = 0; index < root.layoutData.nodes.length; ++index) {
                         const entry = root.layoutData.nodes[index]
                         const node = entry.node
+                        if (node.requires.length > 0)
+                            continue
                         const targetX = offsetX + entry.x + root.nodeWidth / 2
                         const targetY = entry.y
                         const unlocked = Store.nodeUnlocked(root.goal, node)
@@ -133,30 +135,49 @@ Item {
                                                                    Kirigami.Theme.textColor.g,
                                                                    Kirigami.Theme.textColor.b, 0.12)
 
-                        if (node.requires.length === 0) {
-                            context.beginPath()
-                            context.moveTo(treeContent.width / 2, 2)
-                            context.lineTo(treeContent.width / 2, targetY / 2)
-                            context.lineTo(targetX, targetY / 2)
-                            context.lineTo(targetX, targetY)
-                            context.stroke()
-                            continue
-                        }
+                        context.beginPath()
+                        context.moveTo(treeContent.width / 2, 2)
+                        context.lineTo(treeContent.width / 2, targetY / 2)
+                        context.lineTo(targetX, targetY / 2)
+                        context.lineTo(targetX, targetY)
+                        context.stroke()
+                    }
 
-                        for (let requirementIndex = 0; requirementIndex < node.requires.length; ++requirementIndex) {
-                            const source = root.entryFor(node.requires[requirementIndex])
-                            if (!source)
-                                continue
-                            const sourceX = offsetX + source.x + root.nodeWidth / 2
-                            const sourceY = source.y + root.nodeHeight
+                    const edges = root.layoutData.edges || []
+                    for (let index = 0; index < edges.length; ++index) {
+                        const edge = edges[index]
+                        const source = root.entryFor(edge.sourceId)
+                        const target = root.entryFor(edge.targetId)
+                        if (!source || !target)
+                            continue
+                        const sourceX = offsetX + source.x + root.nodeWidth / 2
+                        const sourceY = source.y + root.nodeHeight
+                        const targetX = offsetX + target.x + root.nodeWidth / 2
+                        const targetY = target.y
+                        const unlocked = Store.nodeUnlocked(root.goal, target.node)
+                        context.strokeStyle = target.node.completed_at !== null
+                                              ? Kirigami.Theme.highlightColor
+                                              : unlocked ? root.glassBorder
+                                                         : Qt.rgba(Kirigami.Theme.textColor.r,
+                                                                   Kirigami.Theme.textColor.g,
+                                                                   Kirigami.Theme.textColor.b, 0.12)
+                        context.beginPath()
+                        context.moveTo(sourceX, sourceY)
+                        if (edge.longEdge) {
+                            const sourceGapY = sourceY + root.verticalGap * 0.45
+                            const targetGapY = targetY - root.verticalGap * 0.45
+                            const laneX = offsetX + edge.laneX
+                            context.lineTo(sourceX, sourceGapY)
+                            context.lineTo(laneX, sourceGapY)
+                            context.lineTo(laneX, targetGapY)
+                            context.lineTo(targetX, targetGapY)
+                        } else {
                             const middleY = sourceY + (targetY - sourceY) / 2
-                            context.beginPath()
-                            context.moveTo(sourceX, sourceY)
                             context.lineTo(sourceX, middleY)
                             context.lineTo(targetX, middleY)
-                            context.lineTo(targetX, targetY)
-                            context.stroke()
                         }
+                        context.lineTo(targetX, targetY)
+                        context.stroke()
                     }
                 }
             }
