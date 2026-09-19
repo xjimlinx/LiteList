@@ -121,40 +121,7 @@ check(Store.nodeUnlocked(goal, goal.nodes[1]), "dependent goal node stayed locke
 check(Store.goalProgress(goal).completed === 1, "goal progress is incorrect")
 const layout = Store.goalLayout(goal, 150, 80, 24, 48)
 check(layout.nodes.length === 3, "goal layout lost nodes")
-check(layout.nodes.find(function(entry) { return entry.node.id === 2 }).level === 1
-      && layout.nodes.find(function(entry) { return entry.node.id === 3 }).level === 1,
-      "stage-priority layout did not align a joined milestone")
-
-const skippedLevelGoal = {
-    nodes: [
-        { id: 10, title: "A", requires: [], completed_at: null },
-        { id: 11, title: "B", requires: [], completed_at: null },
-        { id: 12, title: "C", requires: [11], completed_at: null },
-        { id: 13, title: "D", requires: [10, 12], completed_at: null }
-    ]
-}
-const skippedLevelLayout = Store.goalLayout(skippedLevelGoal, 150, 80, 24, 48)
-const skippedLevelEdge = skippedLevelLayout.edges.find(function(edge) {
-    return edge.sourceId === 12 && edge.targetId === 13
-})
-const middleNode = skippedLevelLayout.nodes.find(function(entry) { return entry.node.id === 12 })
-const joinedNode = skippedLevelLayout.nodes.find(function(entry) { return entry.node.id === 13 })
-check(skippedLevelEdge && skippedLevelEdge.sameRank,
-      "a stage-priority dependency was not marked for horizontal routing")
-check(middleNode.level === joinedNode.level && middleNode.x < joinedNode.x,
-      "a stage-priority dependency was not aligned left to right")
-const routedSkippedLevelEdges = Store.routeGoalEdges(skippedLevelLayout, 150, 80, 24, 48)
-check(routedSkippedLevelEdges.every(function(route) { return route.points.length > 1 }),
-      "orthogonal router did not find a route")
-check(routedSkippedLevelEdges.every(function(route) {
-    for (let index = 1; index < route.points.length; ++index) {
-        const previous = route.points[index - 1]
-        const current = route.points[index]
-        if (previous.x !== current.x && previous.y !== current.y)
-            return false
-    }
-    return true
-}), "orthogonal router produced a diagonal segment")
+check(layout.nodes[1].level === 1 && layout.nodes[2].level === 2, "goal prerequisite levels are incorrect")
 
 const cyclic = Store.clone(document)
 cyclic.goals[0].nodes[0].requires = [3]

@@ -22,33 +22,24 @@ Item {
     property bool denseMode: false
     property int nodeShape: 0
     property int nodeSize: 1
-    property bool autoCompact: true
 
     signal toggleNode(double nodeId)
     signal editNode(double nodeId)
     signal deleteNode(double nodeId)
 
-    readonly property int nodeCount: goal ? goal.nodes.length : 0
-    readonly property bool compactLayout: denseMode || (autoCompact && nodeCount > 8)
-    readonly property int effectiveNodeSize: compactLayout ? 0 : Math.max(0, Math.min(2, nodeSize))
+    readonly property int effectiveNodeSize: denseMode ? 0 : Math.max(0, Math.min(2, nodeSize))
     readonly property bool terminated: Store.goalTerminated(goal)
-    readonly property real nodeWidth: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 6.3
-                                            : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 10.8
-                                                                      : Kirigami.Units.gridUnit * 8.2
-    readonly property real nodeHeight: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 4.6
-                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 7.2
-                                                                       : Kirigami.Units.gridUnit * 5.7
-    readonly property real horizontalGap: Kirigami.Units.gridUnit
-                                          * (compactLayout ? 0.95 : 1.35)
-    readonly property real verticalGap: Kirigami.Units.gridUnit
-                                        * (compactLayout ? 1.35 : 2.15)
+    readonly property real nodeWidth: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 7.4
+                                            : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 12
+                                                                      : Kirigami.Units.gridUnit * 9.4
+    readonly property real nodeHeight: effectiveNodeSize === 0 ? Kirigami.Units.gridUnit * 5.4
+                                             : effectiveNodeSize === 2 ? Kirigami.Units.gridUnit * 8.2
+                                                                       : Kirigami.Units.gridUnit * 6.4
+    readonly property real horizontalGap: Kirigami.Units.gridUnit * 1.6
+    readonly property real verticalGap: Kirigami.Units.gridUnit * 2.7
     readonly property var layoutData: {
         revision
         return Store.goalLayout(goal, nodeWidth, nodeHeight, horizontalGap, verticalGap)
-    }
-    readonly property var routedEdges: {
-        revision
-        return Store.routeGoalEdges(layoutData, nodeWidth, nodeHeight, horizontalGap, verticalGap)
     }
 
     function entryFor(nodeId) {
@@ -74,7 +65,6 @@ Item {
     }
 
     onLayoutDataChanged: connectionCanvas.requestPaint()
-    onRoutedEdgesChanged: connectionCanvas.requestPaint()
     onRevisionChanged: connectionCanvas.requestPaint()
 
     Flickable {
@@ -133,127 +123,41 @@ Item {
                     for (let index = 0; index < root.layoutData.nodes.length; ++index) {
                         const entry = root.layoutData.nodes[index]
                         const node = entry.node
-                        if (node.requires.length > 0)
-                            continue
                         const targetX = offsetX + entry.x + root.nodeWidth / 2
                         const targetY = entry.y
                         const unlocked = Store.nodeUnlocked(root.goal, node)
                         context.strokeStyle = node.completed_at !== null
-                                              ? Qt.rgba(Kirigami.Theme.highlightColor.r,
-                                                        Kirigami.Theme.highlightColor.g,
-                                                        Kirigami.Theme.highlightColor.b, 0.68)
+                                              ? Kirigami.Theme.highlightColor
                                               : unlocked ? root.glassBorder
                                                          : Qt.rgba(Kirigami.Theme.textColor.r,
                                                                    Kirigami.Theme.textColor.g,
                                                                    Kirigami.Theme.textColor.b, 0.12)
 
-                        context.beginPath()
-                        context.moveTo(treeContent.width / 2, 2)
-                        context.lineTo(treeContent.width / 2, targetY / 2)
-                        context.lineTo(targetX, targetY / 2)
-                        context.lineTo(targetX, targetY)
-                        context.stroke()
-                    }
-
-                    const routedEdges = root.routedEdges || []
-                    for (let index = 0; index < routedEdges.length; ++index) {
-                        const routed = routedEdges[index]
-                        const edge = routed.edge
-                        const source = root.entryFor(edge.sourceId)
-                        const target = root.entryFor(edge.targetId)
-                        if (!source || !target)
+                        if (node.requires.length === 0) {
+                            context.beginPath()
+                            context.moveTo(treeContent.width / 2, 2)
+                            context.lineTo(treeContent.width / 2, targetY / 2)
+                            context.lineTo(targetX, targetY / 2)
+                            context.lineTo(targetX, targetY)
+                            context.stroke()
                             continue
-                        const sourceX = offsetX + source.x + root.nodeWidth / 2
-                        const sourceY = source.y + root.nodeHeight
-                        const targetX = offsetX + target.x + root.nodeWidth / 2
-                        const targetY = target.y
-                        const unlocked = Store.nodeUnlocked(root.goal, target.node)
-                        context.strokeStyle = target.node.completed_at !== null
-                                              ? Qt.rgba(Kirigami.Theme.highlightColor.r,
-                                                        Kirigami.Theme.highlightColor.g,
-                                                        Kirigami.Theme.highlightColor.b, 0.68)
-                                              : unlocked ? root.glassBorder
-                                                         : Qt.rgba(Kirigami.Theme.textColor.r,
-                                                                   Kirigami.Theme.textColor.g,
-                                                                   Kirigami.Theme.textColor.b, 0.12)
-                        context.beginPath()
-                        if (routed.points && routed.points.length > 1) {
-                            context.moveTo(offsetX + routed.points[0].x, routed.points[0].y)
-                            for (let pointIndex = 1; pointIndex < routed.points.length; ++pointIndex)
-                                context.lineTo(offsetX + routed.points[pointIndex].x,
-                                               routed.points[pointIndex].y)
-                        } else if (edge.sameRank) {
-                            context.moveTo(sourceX, sourceY)
-                            const laneY = source.y + root.nodeHeight
-                                          + root.verticalGap * (0.24 + (edge.lane % 3) * 0.13)
-                            context.lineTo(sourceX, laneY)
-                            context.lineTo(targetX, laneY)
-                        } else if (edge.waypoints && edge.waypoints.length > 0) {
-                            context.moveTo(sourceX, sourceY)
-                            let currentX = sourceX
-                            for (let pointIndex = 0; pointIndex < edge.waypoints.length; ++pointIndex) {
-                                const point = edge.waypoints[pointIndex]
-                                const pointX = offsetX + point.x
-                                const aboveY = point.y - root.verticalGap * 0.45
-                                const belowY = point.y + root.nodeHeight + root.verticalGap * 0.45
-                                context.lineTo(currentX, aboveY)
-                                context.lineTo(pointX, aboveY)
-                                context.lineTo(pointX, belowY)
-                                currentX = pointX
-                            }
-                            const targetGapY = targetY - root.verticalGap * 0.45
-                            context.lineTo(currentX, targetGapY)
-                            context.lineTo(targetX, targetGapY)
-                        } else {
-                            context.moveTo(sourceX, sourceY)
+                        }
+
+                        for (let requirementIndex = 0; requirementIndex < node.requires.length; ++requirementIndex) {
+                            const source = root.entryFor(node.requires[requirementIndex])
+                            if (!source)
+                                continue
+                            const sourceX = offsetX + source.x + root.nodeWidth / 2
+                            const sourceY = source.y + root.nodeHeight
                             const middleY = sourceY + (targetY - sourceY) / 2
+                            context.beginPath()
+                            context.moveTo(sourceX, sourceY)
                             context.lineTo(sourceX, middleY)
                             context.lineTo(targetX, middleY)
-                        }
-                        if (!routed.points || routed.points.length <= 1)
                             context.lineTo(targetX, targetY)
-                        context.stroke()
-                    }
-
-                    // The cards intentionally keep a glass-like background. Remove
-                    // line pixels inside their exact outlines so transparent cards do
-                    // not make a connector appear to pass through a node.
-                    context.save()
-                    context.globalCompositeOperation = "destination-out"
-                    for (let index = 0; index < root.layoutData.nodes.length; ++index) {
-                        const entry = root.layoutData.nodes[index]
-                        const x = offsetX + entry.x
-                        const y = entry.y
-                        const sourceShape = Number(entry.node.shape)
-                        const shape = Number.isInteger(sourceShape)
-                                      && sourceShape >= 0 && sourceShape <= 2
-                                      ? sourceShape : root.nodeShape
-                        const radius = shape === 1 ? 0
-                                       : shape === 2 ? root.nodeHeight / 2 : root.cardRadius
-                        context.beginPath()
-                        if (radius <= 1) {
-                            context.rect(x, y, root.nodeWidth, root.nodeHeight)
-                        } else {
-                            const clampedRadius = Math.min(radius, root.nodeWidth / 2,
-                                                           root.nodeHeight / 2)
-                            context.moveTo(x + clampedRadius, y)
-                            context.lineTo(x + root.nodeWidth - clampedRadius, y)
-                            context.quadraticCurveTo(x + root.nodeWidth, y,
-                                                     x + root.nodeWidth, y + clampedRadius)
-                            context.lineTo(x + root.nodeWidth, y + root.nodeHeight - clampedRadius)
-                            context.quadraticCurveTo(x + root.nodeWidth, y + root.nodeHeight,
-                                                     x + root.nodeWidth - clampedRadius,
-                                                     y + root.nodeHeight)
-                            context.lineTo(x + clampedRadius, y + root.nodeHeight)
-                            context.quadraticCurveTo(x, y + root.nodeHeight,
-                                                     x, y + root.nodeHeight - clampedRadius)
-                            context.lineTo(x, y + clampedRadius)
-                            context.quadraticCurveTo(x, y, x + clampedRadius, y)
-                            context.closePath()
+                            context.stroke()
                         }
-                        context.fill()
                     }
-                    context.restore()
                 }
             }
 
@@ -266,16 +170,12 @@ Item {
                     readonly property var node: modelData.node
                     readonly property bool completed: node.completed_at !== null
                     readonly property bool unlocked: Store.nodeUnlocked(root.goal, node)
-                    readonly property bool showDescription: !root.compactLayout
-                                                            && node.description.length > 0
                     readonly property int effectiveShape: Number.isInteger(node.shape)
                                                                   && node.shape >= 0 && node.shape <= 2
                                                           ? node.shape : root.nodeShape
                     readonly property bool textTruncated: nodeTitleLabel.truncated
-                                                          || (showDescription
+                                                          || (nodeDescriptionLabel.visible
                                                               && nodeDescriptionLabel.truncated)
-                                                          || (!showDescription
-                                                              && node.description.length > 0)
 
                     x: (treeContent.width - root.layoutData.width) / 2 + modelData.x
                     y: modelData.y
@@ -285,12 +185,10 @@ Item {
                               : effectiveShape === 2 ? height / 2 : root.cardRadius
                     color: completed ? Qt.rgba(Kirigami.Theme.highlightColor.r,
                                                Kirigami.Theme.highlightColor.g,
-                                               Kirigami.Theme.highlightColor.b, 0.12)
+                                               Kirigami.Theme.highlightColor.b, 0.22)
                                      : nodeMouse.containsMouse && unlocked ? root.glassRaised : root.glassSurface
-                    border.width: nodeMouse.containsMouse ? 2 : 1
-                    border.color: completed ? Qt.rgba(Kirigami.Theme.highlightColor.r,
-                                                      Kirigami.Theme.highlightColor.g,
-                                                      Kirigami.Theme.highlightColor.b, 0.68)
+                    border.width: completed || nodeMouse.containsMouse ? 2 : 1
+                    border.color: completed ? Kirigami.Theme.highlightColor
                                            : nodeMouse.containsMouse && unlocked
                                              ? Qt.rgba(Kirigami.Theme.highlightColor.r,
                                                        Kirigami.Theme.highlightColor.g,
@@ -319,7 +217,7 @@ Item {
                                            ? Kirigami.Units.smallSpacing : 2
                         width: nodeCard.effectiveShape === 2
                                ? parent.width * 0.28 : parent.width - 4
-                        height: root.compactLayout ? 2 : 3
+                        height: 3
                         radius: 2
                         color: nodeCard.completed ? Kirigami.Theme.highlightColor
                                                   : nodeCard.unlocked ? root.accentWash : "transparent"
@@ -327,11 +225,11 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.topMargin: Kirigami.Units.smallSpacing
-                        anchors.bottomMargin: Kirigami.Units.smallSpacing
+                        anchors.topMargin: Kirigami.Units.smallSpacing * 1.4
+                        anchors.bottomMargin: Kirigami.Units.smallSpacing * 1.4
                         anchors.leftMargin: nodeCard.effectiveShape === 2
-                                            ? Kirigami.Units.gridUnit * (root.compactLayout ? 1.2 : 1.6)
-                                            : Kirigami.Units.smallSpacing * (root.compactLayout ? 1 : 1.4)
+                                            ? Kirigami.Units.gridUnit * 1.6
+                                            : Kirigami.Units.smallSpacing * 1.4
                         anchors.rightMargin: anchors.leftMargin
                         spacing: 1
                         z: 1
@@ -346,9 +244,6 @@ Item {
                                 maximumLineCount: root.effectiveNodeSize === 0 ? 1
                                                     : root.effectiveNodeSize === 2 ? 3 : 2
                                 elide: Text.ElideRight
-                                font.pixelSize: root.compactLayout
-                                                ? Kirigami.Theme.smallFont.pixelSize
-                                                : Kirigami.Theme.defaultFont.pixelSize
                                 font.weight: Font.DemiBold
                             }
                             PlasmaComponents3.ToolButton {
@@ -363,7 +258,7 @@ Item {
                             id: nodeDescriptionLabel
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: nodeCard.showDescription
+                            visible: nodeCard.node.description.length > 0
                             text: nodeCard.node.description
                             wrapMode: Text.Wrap
                             maximumLineCount: root.effectiveNodeSize === 0 ? 1
@@ -388,12 +283,10 @@ Item {
                             }
                             PlasmaComponents3.ToolButton {
                                 id: completionButton
-                                Layout.preferredWidth: Kirigami.Units.gridUnit
-                                                       * (root.compactLayout ? 1.3 : 1.55)
+                                Layout.preferredWidth: Kirigami.Units.gridUnit * 1.55
                                 Layout.preferredHeight: width
                                 Layout.rightMargin: nodeCard.effectiveShape === 2
-                                                    ? Kirigami.Units.gridUnit
-                                                      * (root.compactLayout ? 0.45 : 0.7) : 0
+                                                    ? Kirigami.Units.gridUnit * 0.7 : 0
                                 icon.name: root.terminated ? "process-stop"
                                            : nodeCard.completed ? "edit-undo"
                                            : nodeCard.unlocked ? "checkmark" : "lock"
@@ -410,10 +303,7 @@ Item {
                                     color: completionButton.enabled ? root.accentWash : "transparent"
                                     border.width: 1
                                     border.color: completionButton.enabled
-                                                  ? Qt.rgba(Kirigami.Theme.highlightColor.r,
-                                                            Kirigami.Theme.highlightColor.g,
-                                                            Kirigami.Theme.highlightColor.b, 0.68)
-                                                  : root.glassBorder
+                                                  ? Kirigami.Theme.highlightColor : root.glassBorder
                                 }
                             }
                         }
